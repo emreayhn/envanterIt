@@ -2,7 +2,7 @@
  * Organism: Sidebar
  */
 import { NavLink, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Monitor, KeyRound, Users, ClipboardList, Server, GitBranch } from 'lucide-react';
+import { LayoutDashboard, Monitor, KeyRound, Users, ClipboardList, Server, GitBranch, UserCog } from 'lucide-react';
 import UserProfileCard from '../molecules/UserProfileCard';
 
 const navItems = [
@@ -12,6 +12,10 @@ const navItems = [
     { to: '/employees', label: 'Personel', icon: Users },
     { to: '/assignments', label: 'Zimmetler', icon: ClipboardList },
     { to: '/processes', label: 'Süreç Yönetimi', icon: GitBranch },
+];
+
+const adminItems = [
+    { to: '/users', label: 'Kullanıcılar', icon: UserCog },
 ];
 
 export default function Sidebar({ user, onLogout }) {
@@ -53,6 +57,26 @@ export default function Sidebar({ user, onLogout }) {
                     );
                 })}
             </nav>
+
+            {/* Admin Navigation */}
+            {user?.role === 'admin' && (
+                <nav className="sidebar-nav" style={{ paddingTop: 0 }}>
+                    <p className="sidebar-label">Yönetim</p>
+                    {adminItems.map((item) => {
+                        const isActive = location.pathname === item.to;
+                        return (
+                            <NavLink
+                                key={item.to}
+                                to={item.to}
+                                className={`nav-link ${isActive ? 'active' : ''}`}
+                            >
+                                <item.icon style={{ width: 18, height: 18 }} />
+                                <span>{item.label}</span>
+                            </NavLink>
+                        );
+                    })}
+                </nav>
+            )}
 
             {/* User Profile */}
             <div className="sidebar-footer">

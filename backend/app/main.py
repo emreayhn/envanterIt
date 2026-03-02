@@ -7,7 +7,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
-from app.core.database import engine, Base
+from app.core.database import engine, Base, SessionLocal
 from app.api.v1.router import router as v1_router
 
 # Import all models so they are registered with Base.metadata
@@ -16,8 +16,15 @@ import app.models  # noqa: F401
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Create database tables on startup."""
+    """Create database tables on startup and seed admin."""
     Base.metadata.create_all(bind=engine)
+    # Seed default admin user
+    from app.crud.user import seed_admin
+    db = SessionLocal()
+    try:
+        seed_admin(db)
+    finally:
+        db.close()
     yield
 
 

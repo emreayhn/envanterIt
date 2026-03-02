@@ -8,7 +8,8 @@ services:
       - sqlite-data:/app/data
     environment:
       - DATABASE_URL=sqlite:///./data/inventory.db
-      - DEV_MODE=true
+      - DEV_MODE=false
+      - JWT_SECRET_KEY=envanter-it-production-secret-key-2026
       - CORS_ORIGINS=["https://192.168.2.88","http://192.168.2.88"]
     restart: unless-stopped
 

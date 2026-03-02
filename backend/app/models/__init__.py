@@ -14,3 +14,4 @@ from app.models.printer import Printer, PrinterStatus      # noqa: F401
 from app.models.category import InventoryCategory           # noqa: F401
 from app.models.category_item import InventoryItem, ItemStatus  # noqa: F401
 from app.models.process import Process, ProcessStep            # noqa: F401
+from app.models.user import User, UserRole                     # noqa: F401

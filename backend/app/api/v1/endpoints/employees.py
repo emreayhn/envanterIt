@@ -12,6 +12,7 @@ from app.crud import employee as employee_crud
 from app.crud.audit_log import create_audit_log
 from app.models.assignment import Assignment
 from app.models.license_assignment import LicenseAssignment
+from app.api.v1.endpoints.websocket import broadcast
 
 router = APIRouter(prefix="/employees", tags=["Employees"])
 
@@ -39,6 +40,7 @@ def create_employee(
         user_email=user.email,
         details=f"Created employee {obj.full_name} ({obj.email})",
     )
+    broadcast({"type": "REFRESH", "entity": "employees"})
     return obj
 
 
@@ -58,6 +60,7 @@ def update_employee(
         user_email=user.email,
         details=f"Updated employee id={employee_id}",
     )
+    broadcast({"type": "REFRESH", "entity": "employees"})
     return obj
 
 
@@ -94,6 +97,7 @@ def delete_employee_endpoint(
     db.query(LicenseAssignment).filter(LicenseAssignment.employee_id == employee_id).delete()
     db.delete(emp)
     db.commit()
+    broadcast({"type": "REFRESH", "entity": "employees"})
 
     return {
         "employee_name": emp.full_name,

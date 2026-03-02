@@ -18,10 +18,9 @@ class Settings(BaseSettings):
     # ── CORS ─────────────────────────────────────────────
     CORS_ORIGINS: List[str] = ["http://localhost:5173", "http://localhost:3000"]
 
-    # ── Azure AD / MSAL ──────────────────────────────────
-    AZURE_AD_TENANT_ID: str = "YOUR_TENANT_ID"
-    AZURE_AD_CLIENT_ID: str = "YOUR_CLIENT_ID"
-    AZURE_AD_AUTHORITY: str = "https://login.microsoftonline.com/YOUR_TENANT_ID"
+    # ── JWT Authentication ───────────────────────────────
+    JWT_SECRET_KEY: str = "envanter-it-super-secret-key-change-in-production"
+    JWT_ALGORITHM: str = "HS256"
 
     # When True, auth is bypassed and a mock user is injected (dev only)
     DEV_MODE: bool = True

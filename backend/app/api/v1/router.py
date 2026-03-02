@@ -4,10 +4,15 @@ Aggregated API v1 router — includes all endpoint routers.
 
 from fastapi import APIRouter
 
-from app.api.v1.endpoints import computers, employees, licenses, assignments, dashboard, license_assignments, kiosks, printers, categories, processes
+from app.api.v1.endpoints import (
+    computers, employees, licenses, assignments,
+    dashboard, license_assignments, kiosks, printers,
+    categories, processes, auth, websocket,
+)
 
 router = APIRouter(prefix="/api/v1")
 
+router.include_router(auth.router)
 router.include_router(computers.router)
 router.include_router(employees.router)
 router.include_router(licenses.router)
@@ -18,3 +23,4 @@ router.include_router(kiosks.router)
 router.include_router(printers.router)
 router.include_router(categories.router)
 router.include_router(processes.router)
+router.include_router(websocket.router)

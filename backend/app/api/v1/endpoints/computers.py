@@ -11,6 +11,7 @@ from app.schemas.computer import ComputerCreate, ComputerUpdate, ComputerRespons
 from app.crud import computer as computer_crud
 from app.crud.audit_log import create_audit_log
 from app.models.computer import Computer
+from app.api.v1.endpoints.websocket import broadcast
 from app.models.assignment import Assignment
 from app.models.employee import Employee
 
@@ -39,6 +40,7 @@ def bulk_create_computers(
             details=f"CSV import: {obj.brand} {obj.model} (SN: {obj.serial_no})",
         )
         created.append(obj)
+    broadcast({"type": "REFRESH", "entity": "computers"})
     return {
         "created_count": len(created),
         "skipped_count": len(skipped),
@@ -82,6 +84,7 @@ def create_computer(
         user_email=user.email,
         details=f"Created computer {obj.brand} {obj.model} (SN: {obj.serial_no})",
     )
+    broadcast({"type": "REFRESH", "entity": "computers"})
     return obj
 
 
@@ -101,6 +104,7 @@ def update_computer(
         user_email=user.email,
         details=f"Updated computer id={computer_id}",
     )
+    broadcast({"type": "REFRESH", "entity": "computers"})
     return obj
 
 
@@ -145,4 +149,5 @@ def delete_computer(
     )
     db.delete(obj)
     db.commit()
+    broadcast({"type": "REFRESH", "entity": "computers"})
     return {"detail": "Deleted"}
