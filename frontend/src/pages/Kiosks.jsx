@@ -84,6 +84,10 @@ function parseCSV(text) {
             rows.push({
                 hostname: row.hostname,
                 serial_no: row.serial_no,
+                wifi_mac: row.wifi_mac || '',
+                ethernet_mac: row.ethernet_mac || '',
+                tesis: row.tesis || '',
+                lokasyon: row.lokasyon || '',
                 status: row.status || 'STOCK',
             });
         }
