@@ -1,0 +1,28 @@
+services:
+  backend:
+    build: ./backend
+    container_name: envanter-backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - sqlite-data:/app
+    environment:
+      - DATABASE_URL=sqlite:///./inventory.db
+      - DEV_MODE=false
+      - CORS_ORIGINS=["https://192.168.2.88","http://192.168.2.88"]
+    restart: unless-stopped
+
+  frontend:
+    build: ./frontend
+    container_name: envanter-frontend
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  sqlite-data:
