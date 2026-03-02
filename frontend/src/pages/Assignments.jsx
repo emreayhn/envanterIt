@@ -1,11 +1,11 @@
 /**
- * Page: Assignments — zimmet listesi, yeni zimmet, detay+geçmiş, transfer, arama.
+ * Page: Assignments — zimmet listesi, yeni zimmet, detay+geçmiş, transfer, arama, CSV import.
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import {
     ClipboardList, Monitor, User, Calendar, UserCheck,
     Trash2, Plus, ChevronDown, ChevronUp, ArrowRightLeft, X,
-    Cpu, HardDrive, Search, History, Printer,
+    Cpu, HardDrive, Search, History, Printer, Upload, FileSpreadsheet, AlertTriangle, CheckCircle,
 } from 'lucide-react';
 import useStore from '../store/useStore';
 import Badge from '../components/atoms/Badge';
@@ -14,8 +14,62 @@ import AssignmentModal from '../components/organisms/AssignmentModal';
 import SearchableSelect from '../components/molecules/SearchableSelect';
 import {
     deleteAssignment, createAssignment,
-    getEmployees, getComputer, getAssignmentHistory,
+    getEmployees, getComputer, getAssignmentHistory, bulkCreateAssignments,
 } from '../services/api';
+
+/* ── CSV parsing for zimmet ──────────────────────────── */
+const HEADER_MAP = {
+    'serial_no': 'serial_no', 'seri_no': 'serial_no', 'seri no': 'serial_no', 'serial': 'serial_no', 'serial number': 'serial_no',
+    'full_name': 'full_name', 'personel_adi': 'full_name', 'personel adi': 'full_name', 'ad_soyad': 'full_name', 'ad soyad': 'full_name', 'display name': 'full_name', 'primary user display name': 'full_name',
+    'email': 'email', 'e-posta': 'email', 'eposta': 'email', 'user principal name': 'email', 'primary user email address': 'email',
+};
+
+function splitCSVLine(line, sep) {
+    const cols = [];
+    let current = '';
+    let inQuotes = false;
+    for (let i = 0; i < line.length; i++) {
+        const ch = line[i];
+        if (inQuotes) {
+            if (ch === '"') {
+                if (i + 1 < line.length && line[i + 1] === '"') { current += '"'; i++; }
+                else inQuotes = false;
+            } else current += ch;
+        } else {
+            if (ch === '"') inQuotes = true;
+            else if (ch === sep) { cols.push(current.trim()); current = ''; }
+            else current += ch;
+        }
+    }
+    cols.push(current.trim());
+    return cols;
+}
+
+function parseAssignmentCSV(text) {
+    const firstLine = text.split(/\r?\n/)[0] || '';
+    const sep = firstLine.includes(';') ? ';' : ',';
+    const lines = text.split(/\r?\n/).filter((l) => l.trim());
+    if (lines.length < 2) return [];
+    const rawHeaders = splitCSVLine(lines[0], sep).map((h) => h.toLowerCase().replace(/['"]/g, ''));
+    const mappedHeaders = rawHeaders.map((h) => HEADER_MAP[h] || null);
+    const rows = [];
+    for (let i = 1; i < lines.length; i++) {
+        const cols = splitCSVLine(lines[i], sep);
+        if (cols.length < 2) continue;
+        const row = {};
+        mappedHeaders.forEach((field, idx) => {
+            if (field && cols[idx]) row[field] = cols[idx];
+        });
+        if (row.serial_no && (row.email || row.full_name)) {
+            rows.push({
+                serial_no: row.serial_no,
+                full_name: row.full_name || '',
+                email: row.email || '',
+            });
+        }
+    }
+    return rows;
+}
 
 export default function Assignments() {
     const { assignments, fetchAssignments } = useStore();
@@ -31,7 +85,38 @@ export default function Assignments() {
     const [selectMode, setSelectMode] = useState(false);
     const [selectedIds, setSelectedIds] = useState(new Set());
 
+    // CSV import state
+    const [showCsvImport, setShowCsvImport] = useState(false);
+    const [csvRows, setCsvRows] = useState([]);
+    const [csvFileName, setCsvFileName] = useState('');
+    const [csvUploading, setCsvUploading] = useState(false);
+    const [csvResult, setCsvResult] = useState(null);
+    const [isDragging, setIsDragging] = useState(false);
+    const fileInputRef = useRef(null);
+
     useEffect(() => { fetchAssignments(); }, []);
+
+    // CSV handlers
+    const openCsvImport = () => { setShowCsvImport(true); setCsvRows([]); setCsvFileName(''); setCsvResult(null); };
+    const closeCsvImport = () => { setShowCsvImport(false); setCsvRows([]); setCsvFileName(''); setCsvResult(null); };
+    const handleCsvFile = (file) => {
+        if (!file) return;
+        setCsvResult(null); setCsvFileName(file.name);
+        const reader = new FileReader();
+        reader.onload = (ev) => setCsvRows(parseAssignmentCSV(ev.target.result));
+        reader.readAsText(file, 'UTF-8');
+    };
+    const handleCsvUpload = async () => {
+        if (csvRows.length === 0) return;
+        setCsvUploading(true); setCsvResult(null);
+        try {
+            const { data } = await bulkCreateAssignments(csvRows);
+            setCsvResult(data);
+            fetchAssignments();
+        } catch (err) { console.error(err); }
+        finally { setCsvUploading(false); }
+    };
+    const removeCsvRow = (idx) => setCsvRows((r) => r.filter((_, i) => i !== idx));
 
     // Filter by person name
     const filtered = assignments.filter((a) => {
@@ -147,12 +232,92 @@ export default function Assignments() {
                         {selectMode ? 'Seçimi İptal' : 'Yazdır'}
                     </Button>
                     {!selectMode && (
-                        <Button icon={Plus} onClick={() => setAssignOpen(true)}>
-                            Zimmet Ata
-                        </Button>
+                        <>
+                            <Button icon={Upload} onClick={showCsvImport ? closeCsvImport : openCsvImport} variant={showCsvImport ? 'ghost' : undefined}>
+                                {showCsvImport ? 'CSV Kapat' : 'CSV ile Aktar'}
+                            </Button>
+                            <Button icon={Plus} onClick={() => setAssignOpen(true)}>
+                                Zimmet Ata
+                            </Button>
+                        </>
                     )}
                 </div>
             </div>
+
+            {/* CSV Import */}
+            {showCsvImport && (
+                <div className="glass-card" style={{ padding: 28, marginBottom: 28 }}>
+                    <h3 style={{ fontSize: 13, fontWeight: 600, color: '#94a3b8', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#f59e0b', boxShadow: '0 0 10px rgba(245,158,11,0.4)' }} />
+                        CSV ile Toplu Zimmet Atama
+                    </h3>
+                    <div
+                        onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+                        onDragLeave={() => setIsDragging(false)}
+                        onDrop={(e) => { e.preventDefault(); setIsDragging(false); handleCsvFile(e.dataTransfer.files[0]); }}
+                        onClick={() => fileInputRef.current?.click()}
+                        style={{ border: `2px dashed ${isDragging ? '#f59e0b' : 'rgba(245,158,11,0.15)'}`, borderRadius: 16, padding: '40px 24px', textAlign: 'center', cursor: 'pointer', background: isDragging ? 'rgba(245,158,11,0.06)' : 'rgba(245,158,11,0.02)', transition: 'all 0.25s', marginBottom: 20 }}
+                    >
+                        <input ref={fileInputRef} type="file" accept=".csv,.txt" onChange={(e) => { handleCsvFile(e.target.files[0]); e.target.value = ''; }} style={{ display: 'none' }} />
+                        <FileSpreadsheet style={{ width: 36, height: 36, color: isDragging ? '#f59e0b' : '#334155', margin: '0 auto 12px' }} />
+                        <p style={{ fontSize: 14, fontWeight: 600, color: isDragging ? '#fbbf24' : '#94a3b8' }}>
+                            {isDragging ? 'Dosyayı bırakın...' : 'CSV dosyasını sürükleyin veya tıklayın'}
+                        </p>
+                        <p style={{ fontSize: 11, color: '#475569', marginTop: 6 }}>Kolonlar: serial_no, full_name, email</p>
+                    </div>
+                    {csvFileName && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+                            <FileSpreadsheet style={{ width: 16, height: 16, color: '#f59e0b' }} />
+                            <span style={{ fontSize: 13, color: '#e2e8f0', fontWeight: 500 }}>{csvFileName}</span>
+                            <span style={{ fontSize: 11, padding: '2px 10px', borderRadius: 20, fontWeight: 600, background: 'rgba(245,158,11,0.1)', color: '#fbbf24' }}>{csvRows.length} kayıt</span>
+                        </div>
+                    )}
+                    {csvRows.length > 0 && (
+                        <div style={{ overflowX: 'auto', marginBottom: 20, borderRadius: 12, border: '1px solid rgba(245,158,11,0.08)' }}>
+                            <table className="data-table" style={{ fontSize: 12 }}>
+                                <thead><tr><th>#</th><th>Seri No</th><th>Personel Adı</th><th>E-posta</th><th></th></tr></thead>
+                                <tbody>
+                                    {csvRows.map((r, i) => (
+                                        <tr key={i}>
+                                            <td style={{ color: '#475569' }}>{i + 1}</td>
+                                            <td style={{ fontFamily: 'monospace', color: '#e2e8f0', fontWeight: 600 }}>{r.serial_no}</td>
+                                            <td style={{ color: '#94a3b8' }}>{r.full_name || '—'}</td>
+                                            <td style={{ color: '#64748b', fontSize: 11 }}>{r.email || '—'}</td>
+                                            <td><button onClick={() => removeCsvRow(i)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#f87171', padding: 4 }}><X style={{ width: 14, height: 14 }} /></button></td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+                    {csvResult && (
+                        <div style={{ padding: '14px 20px', borderRadius: 12, marginBottom: 16, background: csvResult.skipped_count > 0 ? 'rgba(245,158,11,0.06)' : 'rgba(16,185,129,0.06)', border: `1px solid ${csvResult.skipped_count > 0 ? 'rgba(245,158,11,0.15)' : 'rgba(16,185,129,0.15)'}` }}>
+                            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+                                {csvResult.skipped_count > 0 ? <AlertTriangle style={{ width: 18, height: 18, color: '#f59e0b', flexShrink: 0, marginTop: 2 }} /> : <CheckCircle style={{ width: 18, height: 18, color: '#10b981', flexShrink: 0, marginTop: 2 }} />}
+                                <div>
+                                    <p style={{ fontSize: 13, fontWeight: 600, color: '#e2e8f0' }}>
+                                        {csvResult.created_count} zimmet başarıyla oluşturuldu
+                                        {csvResult.skipped_count > 0 && `, ${csvResult.skipped_count} adet atlandı`}
+                                    </p>
+                                    {csvResult.skipped?.length > 0 && (
+                                        <div style={{ marginTop: 8 }}>
+                                            {csvResult.skipped.map((s, i) => (
+                                                <p key={i} style={{ fontSize: 11, color: '#f59e0b', marginTop: 2 }}>
+                                                    {s.serial_no}: {s.reason}
+                                                </p>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, paddingTop: 16, borderTop: '1px solid rgba(245,158,11,0.06)' }}>
+                        <Button variant="ghost" onClick={closeCsvImport}>İptal</Button>
+                        <Button icon={Upload} onClick={handleCsvUpload} loading={csvUploading} disabled={csvRows.length === 0}>{csvRows.length} Zimmet Ata</Button>
+                    </div>
+                </div>
+            )}
 
             {/* Search bar + select all */}
             <div className="glass-card" style={{ padding: 16, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 16 }}>

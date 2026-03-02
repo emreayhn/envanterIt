@@ -70,6 +70,7 @@ export const getAssignments = (params) => api.get('/assignments', { params });
 export const createAssignment = (data) => api.post('/assignments', data);
 export const deleteAssignment = (id) => api.delete(`/assignments/${id}`);
 export const getAssignmentHistory = (computerId) => api.get(`/assignments/history/${computerId}`);
+export const bulkCreateAssignments = (items) => api.post('/assignments/bulk', items);
 
 // ── Kiosks ──────────────────────────────────────────────
 export const getKiosks = (params) => api.get('/kiosks', { params });
