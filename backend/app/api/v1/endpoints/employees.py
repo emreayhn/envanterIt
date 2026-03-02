@@ -103,3 +103,33 @@ def delete_employee_endpoint(
         "employee_name": emp.full_name,
         "affected_computers": affected_computers,
     }
+
+
+@router.post("/bulk", status_code=201)
+def bulk_create_employees(
+    items: list[EmployeeCreate],
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    """CSV'den toplu personel oluştur. Email zaten varsa atla."""
+    created_count = 0
+    skipped_count = 0
+    skipped_emails = []
+
+    for item in items:
+        existing = db.query(employee_crud.Employee).filter(
+            employee_crud.Employee.email == item.email
+        ).first()
+        if existing:
+            skipped_count += 1
+            skipped_emails.append(item.email)
+            continue
+        employee_crud.create_employee(db, item)
+        created_count += 1
+
+    broadcast({"type": "REFRESH", "entity": "employees"})
+    return {
+        "created_count": created_count,
+        "skipped_count": skipped_count,
+        "skipped_emails": skipped_emails,
+    }
