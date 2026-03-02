@@ -3,19 +3,17 @@ User CRUD operations.
 """
 
 from sqlalchemy.orm import Session
-from passlib.context import CryptContext
+import bcrypt
 
 from app.models.user import User, UserRole
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
 
 def hash_password(password: str) -> str:
-    return pwd_context.hash(password)
+    return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
 
 
 def verify_password(plain: str, hashed: str) -> bool:
-    return pwd_context.verify(plain, hashed)
+    return bcrypt.checkpw(plain.encode('utf-8'), hashed.encode('utf-8'))
 
 
 def get_user_by_email(db: Session, email: str) -> User | None:
