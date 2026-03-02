@@ -9,9 +9,20 @@ from app.core.database import get_db
 from app.core.security import create_access_token, get_current_user, require_admin, CurrentUser
 from app.schemas.user import UserRegister, UserLogin, UserResponse, TokenResponse
 from app.crud import user as user_crud
+from app.crud.user import hash_password, verify_password
 from app.api.v1.endpoints.websocket import broadcast
+from pydantic import BaseModel
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
+
+
+class ChangePassword(BaseModel):
+    current_password: str
+    new_password: str
+
+
+class ResetPassword(BaseModel):
+    new_password: str
 
 
 @router.post("/register", response_model=UserResponse, status_code=201)
@@ -23,7 +34,6 @@ def register(data: UserRegister, db: Session = Depends(get_db)):
             detail="Bu e-posta adresi zaten kayıtlı",
         )
     user = user_crud.create_user(db, data.full_name, data.email, data.password)
-    # Notify admin about new pending user
     broadcast({"type": "PENDING_USER", "user": data.full_name})
     return user
 
@@ -31,7 +41,7 @@ def register(data: UserRegister, db: Session = Depends(get_db)):
 @router.post("/login", response_model=TokenResponse)
 def login(data: UserLogin, db: Session = Depends(get_db)):
     user = user_crud.get_user_by_email(db, data.email)
-    if not user or not user_crud.verify_password(data.password, user.password_hash):
+    if not user or not verify_password(data.password, user.password_hash):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="E-posta veya şifre hatalı",
@@ -94,3 +104,53 @@ def list_users(
     db: Session = Depends(get_db),
 ):
     return user_crud.get_all_users(db)
+
+
+@router.delete("/users/{user_id}")
+def delete_user(
+    user_id: int,
+    current: CurrentUser = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """Admin: onaylanmış kullanıcıyı sil."""
+    user = user_crud.get_user_by_id(db, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="Kullanıcı bulunamadı")
+    if user.id == current.id:
+        raise HTTPException(status_code=400, detail="Kendi hesabınızı silemezsiniz")
+    db.delete(user)
+    db.commit()
+    return {"detail": "Kullanıcı silindi"}
+
+
+@router.put("/change-password")
+def change_password(
+    data: ChangePassword,
+    current: CurrentUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Kendi şifresini değiştir (mevcut şifreyi doğrulayarak)."""
+    user = user_crud.get_user_by_id(db, current.id)
+    if not user:
+        raise HTTPException(status_code=404, detail="Kullanıcı bulunamadı")
+    if not verify_password(data.current_password, user.password_hash):
+        raise HTTPException(status_code=400, detail="Mevcut şifre hatalı")
+    user.password_hash = hash_password(data.new_password)
+    db.commit()
+    return {"detail": "Şifre başarıyla değiştirildi"}
+
+
+@router.put("/reset-password/{user_id}")
+def reset_password(
+    user_id: int,
+    data: ResetPassword,
+    current: CurrentUser = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """Admin: başka bir kullanıcının şifresini sıfırla."""
+    user = user_crud.get_user_by_id(db, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="Kullanıcı bulunamadı")
+    user.password_hash = hash_password(data.new_password)
+    db.commit()
+    return {"detail": f"{user.full_name} şifresi sıfırlandı"}

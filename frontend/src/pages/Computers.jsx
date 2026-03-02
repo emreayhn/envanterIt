@@ -126,6 +126,10 @@ function parseCSV(text) {
                 brand: row.brand,
                 model: row.model,
                 serial_no: row.serial_no,
+                wifi_mac: row.wifi_mac || '',
+                ethernet_mac: row.ethernet_mac || '',
+                tesis: row.tesis || '',
+                lokasyon: row.lokasyon || '',
                 specifications: { ram: row.ram || '', cpu: row.cpu || '' },
                 status: row.status || 'STOCK',
             });

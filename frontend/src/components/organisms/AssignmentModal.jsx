@@ -30,7 +30,7 @@ export default function AssignmentModal({ isOpen, onClose, onSuccess }) {
 
     const computerOptions = computers.map((c) => ({
         value: String(c.id),
-        label: `${c.brand} ${c.model}`,
+        label: c.computer_name ? `${c.computer_name} — ${c.brand} ${c.model}` : `${c.brand} ${c.model}`,
         sub: c.serial_no,
     }));
 

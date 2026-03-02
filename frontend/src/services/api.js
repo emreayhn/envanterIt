@@ -34,6 +34,9 @@ export const getMe = () => api.get('/auth/me');
 export const getPendingUsers = () => api.get('/auth/pending');
 export const approveUser = (id) => api.put(`/auth/approve/${id}`);
 export const rejectUser = (id) => api.delete(`/auth/reject/${id}`);
+export const deleteUser = (id) => api.delete(`/auth/users/${id}`);
+export const changePassword = (data) => api.put('/auth/change-password', data);
+export const resetUserPassword = (id, data) => api.put(`/auth/reset-password/${id}`, data);
 
 // ── Computers ───────────────────────────────────────────
 export const getComputers = (params) => api.get('/computers', { params });
