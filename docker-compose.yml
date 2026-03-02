@@ -5,9 +5,9 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - sqlite-data:/app
+      - sqlite-data:/app/data
     environment:
-      - DATABASE_URL=sqlite:///./inventory.db
+      - DATABASE_URL=sqlite:///./data/inventory.db
       - DEV_MODE=true
       - CORS_ORIGINS=["https://192.168.2.88","http://192.168.2.88"]
     restart: unless-stopped
