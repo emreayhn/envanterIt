@@ -2,7 +2,7 @@
  * Organism: AssetTable — premium data table with expandable rows.
  * Click a row to see full details (specs, assignment info).
  */
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { ArrowUpDown, Trash2, Edit, Search, Monitor, ChevronDown, ChevronUp, User, Cpu, HardDrive, Hash, Calendar, Tag, AlertTriangle } from 'lucide-react';
 import Badge from '../atoms/Badge';
 import { getComputerAssignments } from '../../services/api';
@@ -13,6 +13,34 @@ export default function AssetTable({ computers, onDelete, onEdit, selectMode = f
     const [sortDir, setSortDir] = useState('desc');
     const [expandedId, setExpandedId] = useState(null);
     const [assignments, setAssignments] = useState([]);
+
+    const topScrollRef = useRef(null);
+    const bottomScrollRef = useRef(null);
+    const tableRef = useRef(null);
+    const [tableWidth, setTableWidth] = useState(0);
+
+    useEffect(() => {
+        if (!tableRef.current) return;
+        const resizeObserver = new ResizeObserver((entries) => {
+            for (const entry of entries) {
+                setTableWidth(entry.contentRect.width);
+            }
+        });
+        resizeObserver.observe(tableRef.current);
+        return () => resizeObserver.disconnect();
+    }, []);
+
+    const handleTopScroll = (e) => {
+        if (bottomScrollRef.current) {
+            bottomScrollRef.current.scrollLeft = e.target.scrollLeft;
+        }
+    };
+
+    const handleBottomScroll = (e) => {
+        if (topScrollRef.current) {
+            topScrollRef.current.scrollLeft = e.target.scrollLeft;
+        }
+    };
 
     const filtered = computers
         .filter((c) => {
@@ -202,9 +230,22 @@ export default function AssetTable({ computers, onDelete, onEdit, selectMode = f
                 </div>
             </div>
 
+            {/* Top Scrollbar */}
+            <div
+                ref={topScrollRef}
+                onScroll={handleTopScroll}
+                style={{ overflowX: 'auto', marginBottom: 2 }}
+            >
+                <div style={{ width: tableWidth, height: 1 }}></div>
+            </div>
+
             {/* Table */}
-            <div style={{ overflowX: 'auto' }}>
-                <table className="data-table">
+            <div
+                ref={bottomScrollRef}
+                onScroll={handleBottomScroll}
+                style={{ overflowX: 'auto' }}
+            >
+                <table ref={tableRef} className="data-table">
                     <thead>
                         <tr>
                             {selectMode && (
