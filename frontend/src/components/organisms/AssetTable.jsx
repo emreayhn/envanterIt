@@ -224,9 +224,9 @@ export default function AssetTable({ computers, onDelete, onEdit, selectMode = f
                                 { field: 'cpu', label: 'CPU' },
                                 { field: 'wifi_mac', label: 'Wi-Fi MAC' },
                                 { field: 'ethernet_mac', label: 'Ethernet MAC' },
+                                { field: 'assigned_to', label: 'Zimmetli Personel' },
                                 { field: 'tesis', label: 'Tesis' },
                                 { field: 'lokasyon', label: 'Lokasyon' },
-                                { field: 'assigned_to', label: 'Zimmetli Personel' },
                                 { field: 'status', label: 'Durum' },
                             ].map(({ field, label }) => (
                                 <th key={field} onClick={() => toggleSort(field)} style={{ cursor: 'pointer' }}>
@@ -282,11 +282,11 @@ export default function AssetTable({ computers, onDelete, onEdit, selectMode = f
                                         <td style={{ color: '#94a3b8', fontSize: 12 }}>{c.specifications?.cpu || '—'}</td>
                                         <td style={{ fontFamily: 'monospace', color: '#64748b', fontSize: 11 }}>{c.wifi_mac || '—'}</td>
                                         <td style={{ fontFamily: 'monospace', color: '#64748b', fontSize: 11 }}>{c.ethernet_mac || '—'}</td>
-                                        <td style={{ color: '#94a3b8', fontSize: 12 }}>{c.tesis || '—'}</td>
-                                        <td style={{ color: '#94a3b8', fontSize: 12 }}>{c.lokasyon || '—'}</td>
                                         <td style={{ color: '#a5b4fc', fontSize: 12, fontWeight: 500 }}>
                                             {c.status === 'ASSIGNED' ? (c.assigned_to || '—') : '—'}
                                         </td>
+                                        <td style={{ color: '#94a3b8', fontSize: 12 }}>{c.tesis || '—'}</td>
+                                        <td style={{ color: '#94a3b8', fontSize: 12 }}>{c.lokasyon || '—'}</td>
                                         <td>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                                                 <Badge status={c.status} />

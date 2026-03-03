@@ -558,6 +558,51 @@ export default function Computers() {
                         </div>
                     )}
 
+                    {/* Quick Add Person (Optional for CSV) */}
+                    {csvRows.length > 0 && (
+                        <div style={{
+                            background: 'rgba(99,102,241,0.04)',
+                            border: '1px dashed rgba(99,102,241,0.2)',
+                            borderRadius: 12,
+                            padding: 16,
+                            marginBottom: 16,
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: 12
+                        }}>
+                            <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#a5b4fc', marginBottom: 0 }}>
+                                <span style={{ color: '#6366f1' }}>+</span> Hızlı Personel Ekle (Opsiyonel)
+                            </label>
+                            <div style={{ display: 'flex', gap: 10 }}>
+                                <input
+                                    type="text"
+                                    placeholder="Ad Soyad..."
+                                    value={quickEmployeeName}
+                                    onChange={(e) => setQuickEmployeeName(e.target.value)}
+                                    className="input"
+                                    style={{ flex: 1 }}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter') {
+                                            e.preventDefault();
+                                            handleQuickAddEmployee();
+                                        }
+                                    }}
+                                />
+                                <Button
+                                    type="button"
+                                    onClick={handleQuickAddEmployee}
+                                    loading={addingQuickEmployee}
+                                    variant="secondary"
+                                >
+                                    Ekle
+                                </Button>
+                            </div>
+                            <p style={{ fontSize: 11, color: '#64748b', margin: 0 }}>
+                                Birden fazla bilgisayar kaydederken aradaki zimmetleme işlemleriniz için ilgili personeli sisteme hızlıca kaydedebilirsiniz.
+                            </p>
+                        </div>
+                    )}
+
                     {/* Result message */}
                     {csvResult && (
                         <div style={{
