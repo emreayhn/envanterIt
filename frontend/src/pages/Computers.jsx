@@ -12,7 +12,7 @@ import { createComputer, updateComputer, deleteComputer, getComputerAssignments,
 
 const emptyForm = {
     computer_name: '', brand: '', model: '', serial_no: '',
-    wifi_mac: '', ethernet_mac: '', tesis: '', lokasyon: '',
+    wifi_mac: '', ethernet_mac: '', tesis: '', lokasyon: '', company: '',
     specifications: { ram: '', cpu: '' }, status: 'STOCK', fault_description: '',
 };
 
@@ -27,6 +27,7 @@ const fields = [
     { name: 'ethernet_mac', label: 'Ethernet MAC', placeholder: '11:22:33:44:55:66' },
     { name: 'tesis', label: 'Tesis', placeholder: 'Merkez Bina' },
     { name: 'lokasyon', label: 'Lokasyon', placeholder: 'Kat 3 - IT Odası' },
+    { name: 'company', label: 'Firma', placeholder: 'ABC Teknoloji' },
 ];
 
 const statusOptions = [
@@ -49,6 +50,7 @@ const HEADER_MAP = {
     'ethernet_mac': 'ethernet_mac', 'ethernet mac': 'ethernet_mac', 'ethernetmac': 'ethernet_mac',
     'tesis': 'tesis', 'facility': 'tesis',
     'lokasyon': 'lokasyon', 'location': 'lokasyon',
+    'firma': 'company', 'sirket': 'company', 'şirket': 'company', 'company': 'company',
     'durum': 'status', 'status': 'status',
     'specifications': 'specifications',
 };
@@ -130,6 +132,7 @@ function parseCSV(text) {
                 ethernet_mac: row.ethernet_mac || '',
                 tesis: row.tesis || '',
                 lokasyon: row.lokasyon || '',
+                company: row.company || '',
                 specifications: { ram: row.ram || '', cpu: row.cpu || '' },
                 status: row.status || 'STOCK',
             });
@@ -193,6 +196,7 @@ export default function Computers() {
             ethernet_mac: computer.ethernet_mac || '',
             tesis: computer.tesis || '',
             lokasyon: computer.lokasyon || '',
+            company: computer.company || '',
             specifications: computer.specifications || { ram: '', cpu: '' },
             status: computer.status || 'STOCK',
 
@@ -371,6 +375,7 @@ export default function Computers() {
                 <td>${c.ethernet_mac || '—'}</td>
                 <td>${c.tesis || '—'}</td>
                 <td>${c.lokasyon || '—'}</td>
+                <td>${c.company || '—'}</td>
                 <td>${c.status === 'ASSIGNED' ? (c.assigned_to || '—') : '—'}</td>
                 <td>${c.status === 'STOCK' ? 'Stokta' : c.status === 'ASSIGNED' ? 'Zimmetli' : c.status}</td>
             </tr>
@@ -400,7 +405,7 @@ export default function Computers() {
             <p class="subtitle">Toplam ${selected.length} bilgisayar · Yazdırma Tarihi: ${new Date().toLocaleDateString('tr-TR')} ${new Date().toLocaleTimeString('tr-TR')}</p>
             <table>
                 <thead><tr>
-                    <th>PC Adı</th><th>Marka</th><th>Model</th><th>Seri No</th><th>RAM</th><th>CPU</th><th>Wi-Fi MAC</th><th>Ethernet MAC</th><th>Tesis</th><th>Lokasyon</th><th>Zimmetli</th><th>Durum</th>
+                    <th>PC Adı</th><th>Marka</th><th>Model</th><th>Seri No</th><th>RAM</th><th>CPU</th><th>Wi-Fi MAC</th><th>Ethernet MAC</th><th>Tesis</th><th>Lokasyon</th><th>Firma</th><th>Zimmetli</th><th>Durum</th>
                 </tr></thead>
                 <tbody>${rows}</tbody>
             </table>

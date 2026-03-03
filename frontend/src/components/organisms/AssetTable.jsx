@@ -27,7 +27,9 @@ export default function AssetTable({ computers, onDelete, onEdit, selectMode = f
                 (c.wifi_mac || '').toLowerCase().includes(q) ||
                 (c.ethernet_mac || '').toLowerCase().includes(q) ||
                 (c.tesis || '').toLowerCase().includes(q) ||
+                (c.tesis || '').toLowerCase().includes(q) ||
                 (c.lokasyon || '').toLowerCase().includes(q) ||
+                (c.company || '').toLowerCase().includes(q) ||
                 (c.assigned_to || '').toLowerCase().includes(q)
             );
         })
@@ -65,6 +67,7 @@ export default function AssetTable({ computers, onDelete, onEdit, selectMode = f
             { icon: Hash, label: 'Ethernet MAC', value: computer.ethernet_mac },
             { icon: Tag, label: 'Tesis', value: computer.tesis },
             { icon: Tag, label: 'Lokasyon', value: computer.lokasyon },
+            { icon: Tag, label: 'Firma', value: computer.company },
             { icon: Calendar, label: 'Eklenme Tarihi', value: computer.created_at ? new Date(computer.created_at).toLocaleDateString('tr-TR') : null },
         ].filter((i) => i.value);
 
@@ -227,6 +230,7 @@ export default function AssetTable({ computers, onDelete, onEdit, selectMode = f
                                 { field: 'assigned_to', label: 'Zimmetli Personel' },
                                 { field: 'tesis', label: 'Tesis' },
                                 { field: 'lokasyon', label: 'Lokasyon' },
+                                { field: 'company', label: 'Firma' },
                                 { field: 'status', label: 'Durum' },
                             ].map(({ field, label }) => (
                                 <th key={field} onClick={() => toggleSort(field)} style={{ cursor: 'pointer' }}>
@@ -287,6 +291,7 @@ export default function AssetTable({ computers, onDelete, onEdit, selectMode = f
                                         </td>
                                         <td style={{ color: '#94a3b8', fontSize: 12 }}>{c.tesis || '—'}</td>
                                         <td style={{ color: '#94a3b8', fontSize: 12 }}>{c.lokasyon || '—'}</td>
+                                        <td style={{ color: '#a5b4fc', fontSize: 12 }}>{c.company || '—'}</td>
                                         <td>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                                                 <Badge status={c.status} />

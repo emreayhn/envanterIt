@@ -26,6 +26,7 @@ class Computer(Base):
     ethernet_mac = Column(String(50), nullable=True, comment="Ethernet MAC adresi")
     tesis = Column(String(150), nullable=True, comment="Tesis adı")
     lokasyon = Column(String(150), nullable=True, comment="Lokasyon bilgisi")
+    company = Column(String(150), nullable=True, comment="Firma")
     specifications = Column(JSON, nullable=True, comment="e.g. {ram: '16GB', cpu: 'i7-13700'}")
     status = Column(
         Enum(ComputerStatus),

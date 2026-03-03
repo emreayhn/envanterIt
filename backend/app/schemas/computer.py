@@ -24,6 +24,7 @@ class ComputerBase(BaseModel):
     ethernet_mac: Optional[str] = Field(None, max_length=50, examples=["11:22:33:44:55:66"])
     tesis: Optional[str] = Field(None, max_length=150, examples=["Merkez Bina"])
     lokasyon: Optional[str] = Field(None, max_length=150, examples=["Kat 3 - IT Odası"])
+    company: Optional[str] = Field(None, max_length=150, examples=["ABC Teknoloji"])
     specifications: Optional[dict] = Field(None, examples=[{"ram": "16GB", "cpu": "i7-13700"}])
     status: ComputerStatusEnum = ComputerStatusEnum.STOCK
     fault_description: Optional[str] = Field(None, max_length=500, examples=["Ekran arızası"])
@@ -42,6 +43,7 @@ class ComputerUpdate(BaseModel):
     ethernet_mac: Optional[str] = Field(None, max_length=50)
     tesis: Optional[str] = Field(None, max_length=150)
     lokasyon: Optional[str] = Field(None, max_length=150)
+    company: Optional[str] = Field(None, max_length=150)
     specifications: Optional[dict] = None
     status: Optional[ComputerStatusEnum] = None
     fault_description: Optional[str] = Field(None, max_length=500)
