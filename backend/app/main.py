@@ -9,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.core.database import engine, Base, SessionLocal
 from app.api.v1.router import router as v1_router
+from sqlalchemy import text
 
 # Import all models so they are registered with Base.metadata
 import app.models  # noqa: F401
@@ -22,6 +23,14 @@ async def lifespan(app: FastAPI):
     from app.crud.user import seed_admin
     db = SessionLocal()
     try:
+        # Auto-migration: Ensure company column exists
+        try:
+            db.execute(text("ALTER TABLE computers ADD COLUMN company VARCHAR(150)"))
+            db.commit()
+        except Exception:
+            db.rollback()
+            pass  # Ignore if it already exists
+
         seed_admin(db)
     finally:
         db.close()
