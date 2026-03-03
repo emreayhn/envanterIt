@@ -11,7 +11,7 @@ class Employee(Base):
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     full_name = Column(String(150), nullable=False)
-    email = Column(String(150), unique=True, nullable=False, index=True)
+    email = Column(String(150), unique=True, nullable=True, index=True)
     department = Column(String(100), nullable=True)
     location = Column(String(150), nullable=True, comment="Çalışma lokasyonu")
     phone = Column(String(50), nullable=True, comment="Telefon numarası")

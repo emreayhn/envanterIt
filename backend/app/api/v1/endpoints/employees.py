@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.security import get_current_user, CurrentUser
-from app.schemas.employee import EmployeeCreate, EmployeeUpdate, EmployeeResponse
+from app.schemas.employee import EmployeeCreate, EmployeeUpdate, EmployeeResponse, EmployeeQuickCreate
 from app.crud import employee as employee_crud
 from app.crud.audit_log import create_audit_log
 from app.models.assignment import Assignment
@@ -20,7 +20,7 @@ router = APIRouter(prefix="/employees", tags=["Employees"])
 @router.get("/", response_model=list[EmployeeResponse])
 def list_employees(
     skip: int = 0,
-    limit: int = 100,
+    limit: int = 2000,
     search: str | None = Query(None),
     db: Session = Depends(get_db),
 ):
@@ -39,6 +39,23 @@ def create_employee(
         action="CREATE_EMPLOYEE",
         user_email=user.email,
         details=f"Created employee {obj.full_name} ({obj.email})",
+    )
+    broadcast({"type": "REFRESH", "entity": "employees"})
+    return obj
+
+
+@router.post("/quick", response_model=EmployeeResponse, status_code=201)
+def create_employee_quick(
+    data: EmployeeQuickCreate,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    obj = employee_crud.create_employee_quick(db, data.full_name)
+    create_audit_log(
+        db,
+        action="CREATE_EMPLOYEE_QUICK",
+        user_email=user.email,
+        details=f"Quick created employee {obj.full_name}",
     )
     broadcast({"type": "REFRESH", "entity": "employees"})
     return obj
@@ -103,6 +120,54 @@ def delete_employee_endpoint(
         "employee_name": emp.full_name,
         "affected_computers": affected_computers,
     }
+
+
+@router.delete("/bulk/unassigned")
+def delete_unassigned_employees(
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    """Silme: Üzerinde aktif bilgisayar zimmeti OLMAYAN tüm personelleri siler."""
+    
+    # 1. Aktif zimmeti olan personel ID'lerini bul
+    active_assignments = db.query(Assignment.employee_id).filter(Assignment.returned_date == None).distinct().all()
+    active_employee_ids = [a[0] for a in active_assignments]
+    
+    # 2. Aktif zimmeti olmayan personelleri bul
+    query = db.query(employee_crud.Employee)
+    if active_employee_ids:
+        query = query.filter(employee_crud.Employee.id.notin_(active_employee_ids))
+    
+    unassigned_employees = query.all()
+    count = len(unassigned_employees)
+    
+    if count == 0:
+        return {"deleted_count": 0, "message": "Silinecek personel bulunamadı (Tüm personellerin aktif zimmeti var)."}
+
+    unassigned_ids = [e.id for e in unassigned_employees]
+
+    # 3. İlgili geçmiş kayıtlarını temizle
+    db.query(Assignment).filter(Assignment.employee_id.in_(unassigned_ids)).delete(synchronize_session=False)
+    db.query(LicenseAssignment).filter(LicenseAssignment.employee_id.in_(unassigned_ids)).delete(synchronize_session=False)
+
+    # 4. Personelleri sil
+    db.query(employee_crud.Employee).filter(employee_crud.Employee.id.in_(unassigned_ids)).delete(synchronize_session=False)
+    
+    # 5. Commit ve Log
+    create_audit_log(
+        db,
+        action="BULK_DELETE_UNASSIGNED_EMPLOYEES",
+        user_email=user.email,
+        details=f"Toplu silme: Aktif zimmeti olmayan {count} personel silindi.",
+    )
+    db.commit()
+    broadcast({"type": "REFRESH", "entity": "employees"})
+
+    return {
+        "deleted_count": count,
+        "message": f"{count} adet atanmamış personel başarıyla silindi.",
+    }
+
 
 
 @router.post("/bulk", status_code=201)

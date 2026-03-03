@@ -8,7 +8,7 @@ from app.models.license import License
 from app.schemas.license import LicenseCreate, LicenseUpdate
 
 
-def get_licenses(db: Session, skip: int = 0, limit: int = 100):
+def get_licenses(db: Session, skip: int = 0, limit: int = 2000):
     return db.query(License).order_by(License.id.desc()).offset(skip).limit(limit).all()
 
 

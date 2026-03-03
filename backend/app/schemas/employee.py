@@ -9,7 +9,7 @@ from datetime import datetime
 
 class EmployeeBase(BaseModel):
     full_name: str = Field(..., max_length=150, examples=["Emre Ayhan"])
-    email: str = Field(..., max_length=150, examples=["emre.ayhan@company.com"])
+    email: Optional[str] = Field(None, max_length=150, examples=["emre.ayhan@company.com"])
     department: Optional[str] = Field(None, max_length=100, examples=["IT"])
     location: Optional[str] = Field(None, max_length=150, examples=["İstanbul"])
     phone: Optional[str] = Field(None, max_length=50, examples=["+90 555 123 4567"])
@@ -18,6 +18,10 @@ class EmployeeBase(BaseModel):
 
 class EmployeeCreate(EmployeeBase):
     pass
+
+
+class EmployeeQuickCreate(BaseModel):
+    full_name: str = Field(..., max_length=150, examples=["Emre Ayhan"])
 
 
 class EmployeeUpdate(BaseModel):

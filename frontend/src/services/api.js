@@ -50,9 +50,11 @@ export const bulkCreateComputers = (items) => api.post('/computers/bulk', items)
 // ── Employees ───────────────────────────────────────────
 export const getEmployees = (params) => api.get('/employees', { params });
 export const createEmployee = (data) => api.post('/employees', data);
+export const quickCreateEmployee = (data) => api.post('/employees/quick', data);
 export const updateEmployee = (id, data) => api.put(`/employees/${id}`, data);
 export const deleteEmployee = (id) => api.delete(`/employees/${id}`);
 export const bulkCreateEmployees = (items) => api.post('/employees/bulk', items);
+export const bulkDeleteUnassignedEmployees = () => api.delete('/employees/bulk/unassigned');
 
 // ── Licenses ────────────────────────────────────────────
 export const getLicenses = (params) => api.get('/licenses', { params });

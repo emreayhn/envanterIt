@@ -47,7 +47,7 @@ def bulk_create_printers(
 @router.get("/", response_model=list[PrinterResponse])
 def list_printers(
     skip: int = 0,
-    limit: int = 100,
+    limit: int = 2000,
     status: PrinterStatusEnum | None = None,
     search: str | None = Query(None),
     db: Session = Depends(get_db),

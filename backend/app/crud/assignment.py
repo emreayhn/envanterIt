@@ -11,7 +11,7 @@ from app.models.computer import Computer, ComputerStatus
 from app.schemas.assignment import AssignmentCreate
 
 
-def get_assignments(db: Session, skip: int = 0, limit: int = 100):
+def get_assignments(db: Session, skip: int = 0, limit: int = 2000):
     """Return only active assignments (returned_date is NULL)."""
     return (
         db.query(Assignment)

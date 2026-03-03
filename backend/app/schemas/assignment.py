@@ -25,6 +25,7 @@ class AssignmentResponse(BaseModel):
     returned_date: Optional[date] = None
 
     # Nested details
+    computer_name: Optional[str] = None
     computer_brand: Optional[str] = None
     computer_model: Optional[str] = None
     computer_serial: Optional[str] = None

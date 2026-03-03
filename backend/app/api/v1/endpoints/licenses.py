@@ -15,8 +15,9 @@ router = APIRouter(prefix="/licenses", tags=["Licenses"])
 
 
 @router.get("/", response_model=list[LicenseResponse])
-def list_licenses(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
-    return license_crud.get_licenses(db, skip=skip, limit=limit)
+def list_licenses(skip: int = 0, limit: int = 2000, db: Session = Depends(get_db)):
+    rows = license_crud.get_licenses(db, skip=skip, limit=limit)
+    return rows
 
 
 @router.post("/", response_model=LicenseResponse, status_code=201)

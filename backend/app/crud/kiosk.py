@@ -10,7 +10,7 @@ from app.schemas.kiosk import KioskCreate, KioskUpdate
 def get_kiosks(
     db: Session,
     skip: int = 0,
-    limit: int = 100,
+    limit: int = 2000,
     status: KioskStatus | None = None,
     search: str | None = None,
 ):

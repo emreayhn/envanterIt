@@ -47,7 +47,7 @@ def bulk_create_kiosks(
 @router.get("/", response_model=list[KioskResponse])
 def list_kiosks(
     skip: int = 0,
-    limit: int = 100,
+    limit: int = 2000,
     status: KioskStatusEnum | None = None,
     search: str | None = Query(None),
     db: Session = Depends(get_db),

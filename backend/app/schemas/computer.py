@@ -50,6 +50,7 @@ class ComputerUpdate(BaseModel):
 class ComputerResponse(ComputerBase):
     id: int
     created_at: Optional[datetime] = None
+    assigned_to: Optional[str] = None
 
     class Config:
         from_attributes = True

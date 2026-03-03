@@ -124,6 +124,7 @@ export default function Assignments() {
         const q = searchQuery.toLowerCase();
         return (
             (a.employee_name || '').toLowerCase().includes(q) ||
+            (a.computer_name || '').toLowerCase().includes(q) ||
             (a.computer_brand || '').toLowerCase().includes(q) ||
             (a.computer_model || '').toLowerCase().includes(q) ||
             (a.computer_serial || '').toLowerCase().includes(q)
@@ -204,7 +205,7 @@ export default function Assignments() {
     const handlePrint = () => {
         const selected = filtered.filter((a) => selectedIds.has(a.id));
         if (selected.length === 0) return;
-        const rows = selected.map((a) => `<tr><td>${a.employee_name || '—'}</td><td>${a.computer_brand} ${a.computer_model}</td><td style="font-family:monospace">${a.computer_serial || '—'}</td><td>${a.assigned_date || '—'}</td></tr>`).join('');
+        const rows = selected.map((a) => `<tr><td>${a.employee_name || '—'}</td><td>${a.computer_name || ''} ${a.computer_brand} ${a.computer_model}</td><td style="font-family:monospace">${a.computer_serial || '—'}</td><td>${a.assigned_date || '—'}</td></tr>`).join('');
         const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Zimmet Listesi</title>
         <style>body{font-family:'Segoe UI',Arial,sans-serif;margin:30px;color:#1e293b}h1{font-size:20px;margin-bottom:4px}.subtitle{font-size:12px;color:#64748b;margin-bottom:20px}table{width:100%;border-collapse:collapse;font-size:12px}th{background:#f1f5f9;padding:8px 10px;text-align:left;font-weight:600;border-bottom:2px solid #e2e8f0;font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:#475569}td{padding:7px 10px;border-bottom:1px solid #e2e8f0}tr:nth-child(even){background:#f8fafc}.footer{margin-top:24px;font-size:11px;color:#94a3b8}@media print{body{margin:15px}}</style></head><body>
         <h1>Zimmet Listesi</h1>
@@ -375,7 +376,7 @@ export default function Assignments() {
                                         </div>
                                         <div style={{ minWidth: 0 }}>
                                             <p style={{ fontSize: 15, fontWeight: 600, color: '#e2e8f0', marginBottom: 6 }}>
-                                                {a.computer_brand} {a.computer_model}
+                                                {a.computer_name ? `${a.computer_name} - ` : ''}{a.computer_brand} {a.computer_model}
                                             </p>
                                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16 }}>
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>

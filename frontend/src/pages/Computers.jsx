@@ -8,7 +8,7 @@ import useStore from '../store/useStore';
 import AssetTable from '../components/organisms/AssetTable';
 import Button from '../components/atoms/Button';
 import AppModal from '../components/atoms/AppModal';
-import { createComputer, updateComputer, deleteComputer, getComputerAssignments, bulkCreateComputers } from '../services/api';
+import { createComputer, updateComputer, deleteComputer, getComputerAssignments, bulkCreateComputers, quickCreateEmployee } from '../services/api';
 
 const emptyForm = {
     computer_name: '', brand: '', model: '', serial_no: '',
@@ -145,6 +145,10 @@ export default function Computers() {
     const [editingId, setEditingId] = useState(null);
     const [form, setForm] = useState({ ...emptyForm });
 
+    // Quick add employee state
+    const [quickEmployeeName, setQuickEmployeeName] = useState('');
+    const [addingQuickEmployee, setAddingQuickEmployee] = useState(false);
+
     const [saving, setSaving] = useState(false);
     const [hasFault, setHasFault] = useState(false);
 
@@ -262,7 +266,25 @@ export default function Computers() {
         }
     };
 
-    const handleCancel = () => { setShowForm(false); setEditingId(null); setForm({ ...emptyForm }); };
+    const handleCancel = () => { setShowForm(false); setEditingId(null); setForm({ ...emptyForm }); setQuickEmployeeName(''); };
+
+    const handleQuickAddEmployee = async () => {
+        if (!quickEmployeeName.trim()) {
+            setModal({ open: true, title: 'Uyarı', message: 'Lütfen personel adı giriniz.', type: 'warning', details: null, onConfirm: closeModal });
+            return;
+        }
+        setAddingQuickEmployee(true);
+        try {
+            const { data } = await quickCreateEmployee({ full_name: quickEmployeeName });
+            setModal({ open: true, title: 'Başarılı', message: `${data.full_name} başarıyla eklendi.`, type: 'success', details: null, onConfirm: closeModal });
+            setQuickEmployeeName('');
+        } catch (err) {
+            const msg = err.response?.data?.detail || 'Personel eklenirken hata oluştu.';
+            setModal({ open: true, title: 'Hata', message: msg, type: 'error', details: null, onConfirm: closeModal });
+        } finally {
+            setAddingQuickEmployee(false);
+        }
+    };
 
     // ── CSV import handlers ─────────────────
     const openCsvImport = () => { setShowCsvImport(true); setShowForm(false); setCsvRows([]); setCsvFileName(''); setCsvResult(null); };
@@ -349,6 +371,7 @@ export default function Computers() {
                 <td>${c.ethernet_mac || '—'}</td>
                 <td>${c.tesis || '—'}</td>
                 <td>${c.lokasyon || '—'}</td>
+                <td>${c.status === 'ASSIGNED' ? (c.assigned_to || '—') : '—'}</td>
                 <td>${c.status === 'STOCK' ? 'Stokta' : c.status === 'ASSIGNED' ? 'Zimmetli' : c.status}</td>
             </tr>
         `).join('');
@@ -377,7 +400,7 @@ export default function Computers() {
             <p class="subtitle">Toplam ${selected.length} bilgisayar · Yazdırma Tarihi: ${new Date().toLocaleDateString('tr-TR')} ${new Date().toLocaleTimeString('tr-TR')}</p>
             <table>
                 <thead><tr>
-                    <th>PC Adı</th><th>Marka</th><th>Model</th><th>Seri No</th><th>RAM</th><th>CPU</th><th>Wi-Fi MAC</th><th>Ethernet MAC</th><th>Tesis</th><th>Lokasyon</th><th>Durum</th>
+                    <th>PC Adı</th><th>Marka</th><th>Model</th><th>Seri No</th><th>RAM</th><th>CPU</th><th>Wi-Fi MAC</th><th>Ethernet MAC</th><th>Tesis</th><th>Lokasyon</th><th>Zimmetli</th><th>Durum</th>
                 </tr></thead>
                 <tbody>${rows}</tbody>
             </table>
@@ -598,6 +621,50 @@ export default function Computers() {
                                 />
                             </div>
                         ))}
+
+                        {/* Quick Add Person */}
+                        <div style={{
+                            gridColumn: '1 / -1',
+                            background: 'rgba(99,102,241,0.04)',
+                            border: '1px dashed rgba(99,102,241,0.2)',
+                            borderRadius: 12,
+                            padding: 16,
+                            marginTop: 8,
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: 12
+                        }}>
+                            <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#a5b4fc', marginBottom: 0 }}>
+                                <span style={{ color: '#6366f1' }}>+</span> Hızlı Personel Ekle
+                            </label>
+                            <div style={{ display: 'flex', gap: 10 }}>
+                                <input
+                                    type="text"
+                                    placeholder="Ad Soyad..."
+                                    value={quickEmployeeName}
+                                    onChange={(e) => setQuickEmployeeName(e.target.value)}
+                                    className="input"
+                                    style={{ flex: 1 }}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter') {
+                                            e.preventDefault();
+                                            handleQuickAddEmployee();
+                                        }
+                                    }}
+                                />
+                                <Button
+                                    type="button"
+                                    onClick={handleQuickAddEmployee}
+                                    loading={addingQuickEmployee}
+                                    variant="secondary"
+                                >
+                                    Ekle
+                                </Button>
+                            </div>
+                            <p style={{ fontSize: 11, color: '#64748b', margin: 0 }}>
+                                Bilgisayar sahibini (personel) sisteme hızlıca kaydetmek için kullanabilirsiniz. Zimmet işlemi ayrıca yapılmalıdır.
+                            </p>
+                        </div>
 
                         {editingId && (
                             <div>

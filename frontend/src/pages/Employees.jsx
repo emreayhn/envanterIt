@@ -2,11 +2,11 @@
  * Page: Employees — personel ekleme, düzenleme, silme, CSV import (tablo görünümü + arama).
  */
 import { useEffect, useState, useRef } from 'react';
-import { Plus, X, Users, Trash2, Search, MapPin, Phone, Briefcase, Building, Edit, Save, Upload, FileSpreadsheet, AlertTriangle, CheckCircle } from 'lucide-react';
+import { Plus, X, Users, Trash2, Search, MapPin, Phone, Briefcase, Building, Edit, Save, Upload, FileSpreadsheet, AlertTriangle, CheckCircle, UserMinus } from 'lucide-react';
 import useStore from '../store/useStore';
 import Button from '../components/atoms/Button';
 import AppModal from '../components/atoms/AppModal';
-import { createEmployee, updateEmployee, deleteEmployee, bulkCreateEmployees } from '../services/api';
+import { createEmployee, updateEmployee, deleteEmployee, bulkCreateEmployees, bulkDeleteUnassignedEmployees } from '../services/api';
 
 /* ── CSV column mapping ──────────────────────────────── */
 const HEADER_MAP = {
@@ -193,6 +193,34 @@ export default function Employees() {
 
     const handleCancel = () => { setShowForm(false); setEditingId(null); setForm({ ...emptyForm }); };
 
+    const handleClearUnassigned = () => {
+        setModal({
+            open: true,
+            title: 'Atanmamışları Temizle',
+            message: 'Üzerinde aktif bilgisayar zimmeti OLMAYAN tüm personeller kalıcı olarak silinecek. Onaylıyor musunuz?',
+            type: 'confirm',
+            details: null,
+            onConfirm: async () => {
+                closeModal();
+                try {
+                    const { data } = await bulkDeleteUnassignedEmployees();
+                    fetchEmployees();
+                    setModal({
+                        open: true,
+                        title: 'İşlem Başarılı',
+                        message: data.message,
+                        type: 'success',
+                        details: null,
+                        onConfirm: closeModal,
+                    });
+                } catch (err) {
+                    const msg = err.response?.data?.detail || 'Toplu silme başarısız.';
+                    setModal({ open: true, title: 'Hata', message: msg, type: 'error', details: null, onConfirm: closeModal });
+                }
+            },
+        });
+    };
+
     const filtered = employees.filter((emp) => {
         const q = search.toLowerCase();
         return (
@@ -226,6 +254,9 @@ export default function Employees() {
                     <p className="page-subtitle">Çalışanları yönetin ve zimmet atayın</p>
                 </div>
                 <div style={{ display: 'flex', gap: 10 }}>
+                    <Button icon={UserMinus} onClick={handleClearUnassigned} variant="secondary" style={{ color: '#ef4444', borderColor: 'rgba(239, 68, 68, 0.3)' }}>
+                        Atanmamışları Temizle
+                    </Button>
                     <Button icon={Upload} onClick={showCsvImport ? closeCsvImport : openCsvImport} variant={showCsvImport ? 'ghost' : undefined}>
                         {showCsvImport ? 'CSV Kapat' : 'CSV ile Ekle'}
                     </Button>

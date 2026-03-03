@@ -35,6 +35,7 @@ def _to_response(row) -> AssignmentResponse:
         assigned_by=row.assigned_by,
         created_at=row.created_at,
         returned_date=row.returned_date,
+        computer_name=row.computer.computer_name if row.computer else None,
         computer_brand=row.computer.brand if row.computer else None,
         computer_model=row.computer.model if row.computer else None,
         computer_serial=row.computer.serial_no if row.computer else None,
@@ -43,7 +44,7 @@ def _to_response(row) -> AssignmentResponse:
 
 
 @router.get("/", response_model=list[AssignmentResponse])
-def list_assignments(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+def list_assignments(skip: int = 0, limit: int = 2000, db: Session = Depends(get_db)):
     rows = assignment_crud.get_assignments(db, skip=skip, limit=limit)
     return [_to_response(r) for r in rows]
 

@@ -27,7 +27,8 @@ export default function AssetTable({ computers, onDelete, onEdit, selectMode = f
                 (c.wifi_mac || '').toLowerCase().includes(q) ||
                 (c.ethernet_mac || '').toLowerCase().includes(q) ||
                 (c.tesis || '').toLowerCase().includes(q) ||
-                (c.lokasyon || '').toLowerCase().includes(q)
+                (c.lokasyon || '').toLowerCase().includes(q) ||
+                (c.assigned_to || '').toLowerCase().includes(q)
             );
         })
         .sort((a, b) => {
@@ -225,6 +226,7 @@ export default function AssetTable({ computers, onDelete, onEdit, selectMode = f
                                 { field: 'ethernet_mac', label: 'Ethernet MAC' },
                                 { field: 'tesis', label: 'Tesis' },
                                 { field: 'lokasyon', label: 'Lokasyon' },
+                                { field: 'assigned_to', label: 'Zimmetli Personel' },
                                 { field: 'status', label: 'Durum' },
                             ].map(({ field, label }) => (
                                 <th key={field} onClick={() => toggleSort(field)} style={{ cursor: 'pointer' }}>
@@ -282,6 +284,9 @@ export default function AssetTable({ computers, onDelete, onEdit, selectMode = f
                                         <td style={{ fontFamily: 'monospace', color: '#64748b', fontSize: 11 }}>{c.ethernet_mac || '—'}</td>
                                         <td style={{ color: '#94a3b8', fontSize: 12 }}>{c.tesis || '—'}</td>
                                         <td style={{ color: '#94a3b8', fontSize: 12 }}>{c.lokasyon || '—'}</td>
+                                        <td style={{ color: '#a5b4fc', fontSize: 12, fontWeight: 500 }}>
+                                            {c.status === 'ASSIGNED' ? (c.assigned_to || '—') : '—'}
+                                        </td>
                                         <td>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                                                 <Badge status={c.status} />

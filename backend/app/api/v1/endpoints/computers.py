@@ -51,12 +51,29 @@ def bulk_create_computers(
 @router.get("/", response_model=list[ComputerResponse])
 def list_computers(
     skip: int = 0,
-    limit: int = 100,
+    limit: int = 2000,
     status: ComputerStatusEnum | None = None,
     search: str | None = Query(None),
     db: Session = Depends(get_db),
 ):
-    return computer_crud.get_computers(db, skip=skip, limit=limit, status=status, search=search)
+    computers = computer_crud.get_computers(db, skip=skip, limit=limit, status=status, search=search)
+    
+    # Enrich with active assignment info
+    result = []
+    for c in computers:
+        c_dict = c.__dict__.copy()
+        if c.status == ComputerStatusEnum.ASSIGNED:
+            # Find active assignment
+            assignment = db.query(Assignment)\
+                .filter(Assignment.computer_id == c.id, Assignment.returned_date == None)\
+                .first()
+            if assignment:
+                employee = db.query(Employee).filter(Employee.id == assignment.employee_id).first()
+                if employee:
+                    c_dict["assigned_to"] = employee.full_name
+        result.append(c_dict)
+        
+    return result
 
 
 @router.get("/{computer_id}", response_model=ComputerResponse)

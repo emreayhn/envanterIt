@@ -10,7 +10,7 @@ from app.schemas.printer import PrinterCreate, PrinterUpdate
 def get_printers(
     db: Session,
     skip: int = 0,
-    limit: int = 100,
+    limit: int = 2000,
     status: PrinterStatus | None = None,
     search: str | None = None,
 ):

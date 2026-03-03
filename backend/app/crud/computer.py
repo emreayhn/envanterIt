@@ -10,7 +10,7 @@ from app.schemas.computer import ComputerCreate, ComputerUpdate
 def get_computers(
     db: Session,
     skip: int = 0,
-    limit: int = 100,
+    limit: int = 2000,
     status: ComputerStatus | None = None,
     search: str | None = None,
 ):

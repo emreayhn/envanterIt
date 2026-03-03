@@ -7,7 +7,7 @@ from app.models.employee import Employee
 from app.schemas.employee import EmployeeCreate, EmployeeUpdate
 
 
-def get_employees(db: Session, skip: int = 0, limit: int = 100, search: str | None = None):
+def get_employees(db: Session, skip: int = 0, limit: int = 2000, search: str | None = None):
     query = db.query(Employee)
     if search:
         pattern = f"%{search}%"
@@ -23,6 +23,14 @@ def get_employee(db: Session, employee_id: int) -> Employee | None:
 
 def create_employee(db: Session, data: EmployeeCreate) -> Employee:
     obj = Employee(**data.model_dump())
+    db.add(obj)
+    db.commit()
+    db.refresh(obj)
+    return obj
+
+
+def create_employee_quick(db: Session, full_name: str) -> Employee:
+    obj = Employee(full_name=full_name)
     db.add(obj)
     db.commit()
     db.refresh(obj)
