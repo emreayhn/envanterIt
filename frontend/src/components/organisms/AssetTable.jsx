@@ -7,8 +7,17 @@ import { ArrowUpDown, Trash2, Edit, Search, Monitor, ChevronDown, ChevronUp, Use
 import Badge from '../atoms/Badge';
 import { getComputerAssignments } from '../../services/api';
 
-export default function AssetTable({ computers, onDelete, onEdit, selectMode = false, selectedIds = new Set(), onToggleSelect, onToggleAll }) {
+const STATUS_OPTIONS = [
+    { value: '', label: 'Tüm Durumlar' },
+    { value: 'STOCK', label: 'Stokta' },
+    { value: 'ASSIGNED', label: 'Zimmetli' },
+    { value: 'REPAIR', label: 'Tamirde' },
+    { value: 'SCRAP', label: 'Hurda' },
+];
+
+export default function AssetTable({ computers, onDelete, onEdit, selectMode = false, selectedIds = new Set(), onToggleSelect, onToggleAll, statusFilter: initialStatusFilter = '' }) {
     const [search, setSearch] = useState('');
+    const [statusFilter, setStatusFilter] = useState(initialStatusFilter);
     const [sortField, setSortField] = useState('id');
     const [sortDir, setSortDir] = useState('desc');
     const [expandedId, setExpandedId] = useState(null);
@@ -44,6 +53,7 @@ export default function AssetTable({ computers, onDelete, onEdit, selectMode = f
 
     const filtered = computers
         .filter((c) => {
+            if (statusFilter && c.status !== statusFilter) return false;
             const q = search.toLowerCase();
             return (
                 c.brand?.toLowerCase().includes(q) ||
@@ -216,9 +226,9 @@ export default function AssetTable({ computers, onDelete, onEdit, selectMode = f
 
     return (
         <div className="glass-card" style={{ overflow: 'hidden' }}>
-            {/* Search */}
-            <div style={{ padding: 20, borderBottom: '1px solid rgba(99,102,241,0.06)' }}>
-                <div style={{ position: 'relative', maxWidth: 400 }}>
+            {/* Search + Status Filter */}
+            <div style={{ padding: 20, borderBottom: '1px solid rgba(99,102,241,0.06)', display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+                <div style={{ position: 'relative', flex: '1 1 300px', maxWidth: 400 }}>
                     <Search style={{ position: 'absolute', left: 16, top: '50%', transform: 'translateY(-50%)', width: 16, height: 16, color: '#334155' }} />
                     <input
                         value={search}
@@ -228,6 +238,24 @@ export default function AssetTable({ computers, onDelete, onEdit, selectMode = f
                         style={{ paddingLeft: 44 }}
                     />
                 </div>
+                <select
+                    value={statusFilter}
+                    onChange={(e) => setStatusFilter(e.target.value)}
+                    style={{
+                        padding: '10px 16px', fontSize: 13, fontWeight: 500,
+                        color: statusFilter ? '#a5b4fc' : '#94a3b8',
+                        backgroundColor: 'rgba(8,12,28,0.8)',
+                        border: `1px solid ${statusFilter ? 'rgba(99,102,241,0.3)' : 'rgba(99,102,241,0.08)'}`,
+                        borderRadius: 12, outline: 'none',
+                        fontFamily: 'Inter, sans-serif', appearance: 'auto',
+                        cursor: 'pointer', transition: 'all 0.2s',
+                        minWidth: 150,
+                    }}
+                >
+                    {STATUS_OPTIONS.map((o) => (
+                        <option key={o.value} value={o.value}>{o.label}</option>
+                    ))}
+                </select>
             </div>
 
             {/* Top Scrollbar */}

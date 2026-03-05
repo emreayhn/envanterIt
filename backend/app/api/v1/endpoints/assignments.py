@@ -55,12 +55,40 @@ def assignment_history(computer_id: int, db: Session = Depends(get_db)):
     return [_to_response(r) for r in rows]
 
 
-@router.post("/", response_model=AssignmentResponse, status_code=201)
+@router.post("/", status_code=201)
 def create_assignment(
     data: AssignmentCreate,
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
+    # --- Auto-return: if this employee already has an active assignment on ANOTHER computer, return it ---
+    returned_computer_name = None
+    existing = (
+        db.query(Assignment)
+        .filter(
+            Assignment.employee_id == data.employee_id,
+            Assignment.returned_date == None,  # noqa: E711
+            Assignment.computer_id != data.computer_id,
+        )
+        .first()
+    )
+    if existing:
+        existing.returned_date = date.today()
+        old_computer = db.query(Computer).filter(Computer.id == existing.computer_id).first()
+        if old_computer:
+            old_computer.status = ComputerStatus.STOCK
+            returned_computer_name = (
+                f"{old_computer.computer_name} — {old_computer.brand} {old_computer.model}"
+                if old_computer.computer_name
+                else f"{old_computer.brand} {old_computer.model}"
+            )
+        create_audit_log(
+            db,
+            action="AUTO_RETURN_ASSIGNMENT",
+            user_email=user.email,
+            details=f"Auto-returned computer_id={existing.computer_id} from employee_id={data.employee_id} (transfer)",
+        )
+
     obj = assignment_crud.create_assignment(db, data, assigned_by=user.email)
     create_audit_log(
         db,
@@ -68,7 +96,12 @@ def create_assignment(
         user_email=user.email,
         details=f"Assigned computer_id={data.computer_id} to employee_id={data.employee_id}",
     )
-    return _to_response(obj)
+    resp = _to_response(obj)
+    # Include returned computer info in response
+    result = resp.model_dump()
+    if returned_computer_name:
+        result["returned_computer_name"] = returned_computer_name
+    return result
 
 
 @router.delete("/{assignment_id}", status_code=204)

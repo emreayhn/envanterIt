@@ -9,41 +9,49 @@ const fixedCards = [
         key: 'total', label: 'TOPLAM BİLGİSAYAR', icon: Monitor,
         color: '#06b6d4', bg: 'rgba(6,182,212,0.08)', border: 'rgba(6,182,212,0.25)',
         glow: 'rgba(6,182,212,0.12)', field: 'total_computers', sub: 'Tümü',
+        path: '/inventory/computers',
     },
     {
         key: 'stock', label: 'STOK CİHAZLAR', icon: Package,
         color: '#10b981', bg: 'rgba(16,185,129,0.08)', border: 'rgba(16,185,129,0.25)',
         glow: 'rgba(16,185,129,0.12)', field: 'stock_computers', sub: 'Kullanıma hazır',
+        path: '/inventory/computers?status=STOCK',
     },
     {
         key: 'assigned', label: 'ZİMMETLİ', icon: User,
         color: '#8b5cf6', bg: 'rgba(139,92,246,0.08)', border: 'rgba(139,92,246,0.25)',
         glow: 'rgba(139,92,246,0.12)', field: 'assigned_computers', sub: 'Aktif zimmet',
+        path: '/inventory/computers?status=ASSIGNED',
     },
     {
         key: 'faulty', label: 'ARIZALI', icon: AlertTriangle,
         color: '#ef4444', bg: 'rgba(239,68,68,0.08)', border: 'rgba(239,68,68,0.25)',
         glow: 'rgba(239,68,68,0.12)', field: 'faulty_computers', sub: 'Bakım gerekiyor',
+        path: '/inventory/computers?status=REPAIR',
     },
     {
         key: 'kiosks', label: 'KİOSKLAR', icon: Tv,
         color: '#f59e0b', bg: 'rgba(245,158,11,0.08)', border: 'rgba(245,158,11,0.25)',
         glow: 'rgba(245,158,11,0.12)', field: 'total_kiosks', sub: 'Toplam kiosk',
+        path: '/inventory/kiosks',
     },
     {
         key: 'printers', label: 'YAZICILAR', icon: Printer,
         color: '#ec4899', bg: 'rgba(236,72,153,0.08)', border: 'rgba(236,72,153,0.25)',
         glow: 'rgba(236,72,153,0.12)', field: 'total_printers', sub: 'Toplam yazıcı',
+        path: '/inventory/printers',
     },
     {
         key: 'licenses', label: 'LİSANSLAR', icon: KeyRound,
         color: '#14b8a6', bg: 'rgba(20,184,166,0.08)', border: 'rgba(20,184,166,0.25)',
         glow: 'rgba(20,184,166,0.12)', field: 'total_licenses', sub: 'Toplam lisans',
+        path: '/licenses',
     },
     {
         key: 'employees', label: 'PERSONEL', icon: Users,
         color: '#10b981', bg: 'rgba(16,185,129,0.08)', border: 'rgba(16,185,129,0.25)',
         glow: 'rgba(16,185,129,0.12)', field: 'total_employees', sub: 'Kayıtlı kişi',
+        path: '/employees',
     },
 ];
 
@@ -124,7 +132,7 @@ export default function StatsCards({ stats }) {
     return (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16 }}>
             {/* Fixed cards */}
-            {fixedCards.map(({ key, label, icon, color, bg, border, glow, field, sub }) => (
+            {fixedCards.map(({ key, label, icon, color, bg, border, glow, field, sub, path }) => (
                 <StatCard
                     key={key}
                     label={label}
@@ -135,6 +143,7 @@ export default function StatsCards({ stats }) {
                     glow={glow}
                     value={stats[field]}
                     sub={sub}
+                    onClick={path ? () => navigate(path) : undefined}
                 />
             ))}
 

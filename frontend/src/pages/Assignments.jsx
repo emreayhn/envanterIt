@@ -5,7 +5,7 @@ import { useEffect, useState, useRef } from 'react';
 import {
     ClipboardList, Monitor, User, Calendar, UserCheck,
     Trash2, Plus, ChevronDown, ChevronUp, ArrowRightLeft, X,
-    Cpu, HardDrive, Search, History, Printer, Upload, FileSpreadsheet, AlertTriangle, CheckCircle,
+    Cpu, HardDrive, Search, History, Printer, Upload, FileSpreadsheet, AlertTriangle, CheckCircle, Package,
 } from 'lucide-react';
 import useStore from '../store/useStore';
 import Badge from '../components/atoms/Badge';
@@ -94,6 +94,15 @@ export default function Assignments() {
     const [isDragging, setIsDragging] = useState(false);
     const fileInputRef = useRef(null);
 
+    // Toast notification state
+    const [toast, setToast] = useState(null);
+    useEffect(() => {
+        if (toast) {
+            const timer = setTimeout(() => setToast(null), 5000);
+            return () => clearTimeout(timer);
+        }
+    }, [toast]);
+
     useEffect(() => { fetchAssignments(); }, []);
 
     // CSV handlers
@@ -177,10 +186,22 @@ export default function Assignments() {
         setTransferring(true);
         try {
             await deleteAssignment(transferId);
-            await createAssignment({
+            const { data } = await createAssignment({
                 computer_id: assignment.computer_id,
                 employee_id: Number(newEmployeeId),
             });
+            // Show toast if the new employee's old computer was auto-returned to stock
+            if (data.returned_computer_name) {
+                setToast({
+                    message: `"${data.returned_computer_name}" stoğa alınmıştır.`,
+                    type: 'info',
+                });
+            } else {
+                setToast({
+                    message: 'Zimmet başarıyla aktarıldı.',
+                    type: 'success',
+                });
+            }
             setTransferId(null);
             setExpandedId(null);
             setDetailData(null);
@@ -219,6 +240,39 @@ export default function Assignments() {
 
     return (
         <div>
+            {/* Toast Notification */}
+            {toast && (
+                <div
+                    style={{
+                        position: 'fixed', top: 24, right: 24, zIndex: 200,
+                        display: 'flex', alignItems: 'center', gap: 12,
+                        padding: '16px 24px', borderRadius: 14,
+                        background: toast.type === 'info'
+                            ? 'rgba(6,182,212,0.12)'
+                            : 'rgba(16,185,129,0.12)',
+                        border: `1px solid ${toast.type === 'info' ? 'rgba(6,182,212,0.3)' : 'rgba(16,185,129,0.3)'}`,
+                        backdropFilter: 'blur(20px)',
+                        boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
+                        animation: 'pageSlide 0.3s ease-out',
+                        maxWidth: 420,
+                    }}
+                >
+                    {toast.type === 'info' ? (
+                        <Package style={{ width: 20, height: 20, color: '#06b6d4', flexShrink: 0 }} />
+                    ) : (
+                        <CheckCircle style={{ width: 20, height: 20, color: '#10b981', flexShrink: 0 }} />
+                    )}
+                    <span style={{ fontSize: 13, fontWeight: 600, color: '#e2e8f0' }}>
+                        {toast.message}
+                    </span>
+                    <button
+                        onClick={() => setToast(null)}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b', padding: 2, marginLeft: 8, flexShrink: 0 }}
+                    >
+                        <X style={{ width: 14, height: 14 }} />
+                    </button>
+                </div>
+            )}
             {/* Header */}
             <div className="page-header" style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
                 <div>

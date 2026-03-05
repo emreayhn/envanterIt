@@ -3,7 +3,7 @@
  */
 import { useEffect, useState, useRef } from 'react';
 import { Plus, X, Monitor, Save, Upload, FileSpreadsheet, AlertTriangle, CheckCircle, ArrowLeft, Printer } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import useStore from '../store/useStore';
 import AssetTable from '../components/organisms/AssetTable';
 import Button from '../components/atoms/Button';
@@ -143,6 +143,8 @@ function parseCSV(text) {
 
 export default function Computers() {
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
+    const statusFromUrl = searchParams.get('status') || '';
     const { computers, fetchComputers } = useStore();
     const [showForm, setShowForm] = useState(false);
     const [editingId, setEditingId] = useState(null);
@@ -801,6 +803,7 @@ export default function Computers() {
                 selectedIds={selectedIds}
                 onToggleSelect={handleToggleSelect}
                 onToggleAll={handleToggleAll}
+                statusFilter={statusFromUrl}
             />
 
             {/* ── Floating selection bar ────────────────── */}
