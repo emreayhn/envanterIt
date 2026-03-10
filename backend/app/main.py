@@ -31,6 +31,23 @@ async def lifespan(app: FastAPI):
             db.rollback()
             pass  # Ignore if it already exists
 
+        # Auto-migration: Ensure ethernet_mac_2 column exists on kiosks
+        try:
+            db.execute(text("ALTER TABLE kiosks ADD COLUMN ethernet_mac_2 VARCHAR(50)"))
+            db.commit()
+        except Exception:
+            db.rollback()
+            pass  # Ignore if it already exists
+
+        # Auto-migration: Drop unique constraint on kiosks.serial_no (O.E.M. duplicates allowed)
+        try:
+            db.execute(text("DROP INDEX IF EXISTS ix_kiosks_serial_no"))
+            db.execute(text("CREATE INDEX IF NOT EXISTS ix_kiosks_serial_no ON kiosks(serial_no)"))
+            db.commit()
+        except Exception:
+            db.rollback()
+            pass
+
         seed_admin(db)
     finally:
         db.close()

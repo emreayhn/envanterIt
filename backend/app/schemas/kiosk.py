@@ -20,6 +20,7 @@ class KioskBase(BaseModel):
     serial_no: str = Field(..., max_length=100, examples=["KSK-2024-00001"])
     wifi_mac: Optional[str] = Field(None, max_length=50, examples=["AA:BB:CC:DD:EE:FF"])
     ethernet_mac: Optional[str] = Field(None, max_length=50, examples=["11:22:33:44:55:66"])
+    ethernet_mac_2: Optional[str] = Field(None, max_length=50, examples=["77:88:99:AA:BB:CC"])
     tesis: Optional[str] = Field(None, max_length=150, examples=["Merkez Bina"])
     lokasyon: Optional[str] = Field(None, max_length=150, examples=["Kat 3 - Giriş"])
     status: KioskStatusEnum = KioskStatusEnum.STOCK
@@ -35,6 +36,7 @@ class KioskUpdate(BaseModel):
     serial_no: Optional[str] = Field(None, max_length=100)
     wifi_mac: Optional[str] = Field(None, max_length=50)
     ethernet_mac: Optional[str] = Field(None, max_length=50)
+    ethernet_mac_2: Optional[str] = Field(None, max_length=50)
     tesis: Optional[str] = Field(None, max_length=150)
     lokasyon: Optional[str] = Field(None, max_length=150)
     status: Optional[KioskStatusEnum] = None

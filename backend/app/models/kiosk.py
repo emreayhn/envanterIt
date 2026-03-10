@@ -19,9 +19,10 @@ class Kiosk(Base):
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     hostname = Column(String(150), nullable=False, comment="Kiosk hostname")
-    serial_no = Column(String(100), unique=True, nullable=False, index=True)
+    serial_no = Column(String(100), nullable=False, index=True)
     wifi_mac = Column(String(50), nullable=True, comment="Wi-Fi MAC adresi")
     ethernet_mac = Column(String(50), nullable=True, comment="Ethernet MAC adresi")
+    ethernet_mac_2 = Column(String(50), nullable=True, comment="Ethernet MAC 2 adresi")
     tesis = Column(String(150), nullable=True, comment="Tesis adı")
     lokasyon = Column(String(150), nullable=True, comment="Lokasyon bilgisi")
     status = Column(

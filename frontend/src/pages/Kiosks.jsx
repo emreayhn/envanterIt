@@ -11,7 +11,7 @@ import AppModal from '../components/atoms/AppModal';
 import { createKiosk, updateKiosk, deleteKiosk, bulkCreateKiosks } from '../services/api';
 
 const emptyForm = {
-    hostname: '', serial_no: '', wifi_mac: '', ethernet_mac: '',
+    hostname: '', serial_no: '', wifi_mac: '', ethernet_mac: '', ethernet_mac_2: '',
     tesis: '', lokasyon: '', status: 'STOCK', fault_description: '',
 };
 
@@ -19,7 +19,8 @@ const fields = [
     { name: 'hostname', label: 'Hostname', placeholder: 'KIOSK-001' },
     { name: 'serial_no', label: 'Seri No', placeholder: 'KSK-2024-00001' },
     { name: 'wifi_mac', label: 'Wi-Fi MAC', placeholder: 'AA:BB:CC:DD:EE:FF' },
-    { name: 'ethernet_mac', label: 'Ethernet MAC', placeholder: '11:22:33:44:55:66' },
+    { name: 'ethernet_mac', label: 'Ethernet MAC 1', placeholder: '11:22:33:44:55:66' },
+    { name: 'ethernet_mac_2', label: 'Ethernet MAC 2', placeholder: '77:88:99:AA:BB:CC' },
     { name: 'tesis', label: 'Tesis', placeholder: 'Merkez Bina' },
     { name: 'lokasyon', label: 'Lokasyon', placeholder: 'Kat 3 - Giriş' },
 ];
@@ -36,7 +37,9 @@ const HEADER_MAP = {
     'seri_no': 'serial_no', 'seri no': 'serial_no', 'serial_no': 'serial_no',
     'serial': 'serial_no', 'serino': 'serial_no',
     'wifi_mac': 'wifi_mac', 'wifi mac': 'wifi_mac', 'wi-fi mac': 'wifi_mac', 'wifimac': 'wifi_mac',
-    'ethernet_mac': 'ethernet_mac', 'ethernet mac': 'ethernet_mac', 'ethernetmac': 'ethernet_mac',
+    'ethernet_mac': 'ethernet_mac', 'ethernet mac': 'ethernet_mac', 'ethernetmac': 'ethernet_mac', 'ethernet_mac_1': 'ethernet_mac', 'ethernet mac 1': 'ethernet_mac',
+    'ethernet_mac_2': 'ethernet_mac_2', 'ethernet mac 2': 'ethernet_mac_2', 'ethernetmac2': 'ethernet_mac_2',
+    'ethernet_details': 'ethernet_details',
     'tesis': 'tesis', 'facility': 'tesis',
     'lokasyon': 'lokasyon', 'location': 'lokasyon',
     'durum': 'status', 'status': 'status',
@@ -81,11 +84,24 @@ function parseCSV(text) {
             if (field && cols[idx]) row[field] = cols[idx];
         });
         if (row.hostname && row.serial_no) {
+            // Handle ethernet_details column from legacy script (format: "eth0:MAC1,eth1:MAC2")
+            let ethMac1 = row.ethernet_mac || '';
+            let ethMac2 = row.ethernet_mac_2 || '';
+            if (row.ethernet_details && !ethMac1) {
+                const parts = row.ethernet_details.split(',').map(p => p.trim()).filter(Boolean);
+                parts.forEach((part, idx) => {
+                    // Extract MAC from "eth0:AA:BB:CC:DD:EE:FF" format
+                    const mac = part.includes(':') ? part.substring(part.indexOf(':') + 1) : part;
+                    if (idx === 0 && !ethMac1) ethMac1 = mac;
+                    else if (idx === 1 && !ethMac2) ethMac2 = mac;
+                });
+            }
             rows.push({
                 hostname: row.hostname,
                 serial_no: row.serial_no,
                 wifi_mac: row.wifi_mac || '',
-                ethernet_mac: row.ethernet_mac || '',
+                ethernet_mac: ethMac1,
+                ethernet_mac_2: ethMac2,
                 tesis: row.tesis || '',
                 lokasyon: row.lokasyon || '',
                 status: row.status || 'STOCK',
@@ -149,7 +165,7 @@ export default function Kiosks() {
     const openNew = () => { setEditingId(null); setForm({ ...emptyForm }); setHasFault(false); setShowForm(true); setShowCsvImport(false); };
     const openEdit = (kiosk) => {
         setEditingId(kiosk.id);
-        setForm({ hostname: kiosk.hostname || '', serial_no: kiosk.serial_no || '', wifi_mac: kiosk.wifi_mac || '', ethernet_mac: kiosk.ethernet_mac || '', tesis: kiosk.tesis || '', lokasyon: kiosk.lokasyon || '', status: kiosk.status || 'STOCK', fault_description: kiosk.fault_description || '' });
+        setForm({ hostname: kiosk.hostname || '', serial_no: kiosk.serial_no || '', wifi_mac: kiosk.wifi_mac || '', ethernet_mac: kiosk.ethernet_mac || '', ethernet_mac_2: kiosk.ethernet_mac_2 || '', tesis: kiosk.tesis || '', lokasyon: kiosk.lokasyon || '', status: kiosk.status || 'STOCK', fault_description: kiosk.fault_description || '' });
         setHasFault(!!kiosk.fault_description);
         setShowForm(true); setShowCsvImport(false);
         window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -225,12 +241,12 @@ export default function Kiosks() {
     const handlePrint = () => {
         const selected = kiosks.filter((k) => selectedIds.has(k.id));
         if (selected.length === 0) return;
-        const rows = selected.map((k) => `<tr><td>${k.hostname}</td><td>${k.serial_no}</td><td>${k.wifi_mac || '—'}</td><td>${k.ethernet_mac || '—'}</td><td>${k.tesis || '—'}</td><td>${k.lokasyon || '—'}</td><td>${k.status === 'STOCK' ? 'Stokta' : k.status === 'ASSIGNED' ? 'Zimmetli' : k.status}</td></tr>`).join('');
+        const rows = selected.map((k) => `<tr><td>${k.hostname}</td><td>${k.serial_no}</td><td>${k.wifi_mac || '—'}</td><td>${k.ethernet_mac || '—'}</td><td>${k.ethernet_mac_2 || '—'}</td><td>${k.tesis || '—'}</td><td>${k.lokasyon || '—'}</td><td>${k.status === 'STOCK' ? 'Stokta' : k.status === 'ASSIGNED' ? 'Zimmetli' : k.status}</td></tr>`).join('');
         const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Kiosk Envanter Listesi</title>
         <style>body{font-family:'Segoe UI',Arial,sans-serif;margin:30px;color:#1e293b}h1{font-size:20px;margin-bottom:4px}.subtitle{font-size:12px;color:#64748b;margin-bottom:20px}table{width:100%;border-collapse:collapse;font-size:12px}th{background:#f1f5f9;padding:8px 10px;text-align:left;font-weight:600;border-bottom:2px solid #e2e8f0;font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:#475569}td{padding:7px 10px;border-bottom:1px solid #e2e8f0}tr:nth-child(even){background:#f8fafc}.footer{margin-top:24px;font-size:11px;color:#94a3b8}@media print{body{margin:15px}}</style></head><body>
         <h1>Kiosk Envanter Listesi</h1>
         <p class="subtitle">Toplam ${selected.length} kiosk · Yazdırma Tarihi: ${new Date().toLocaleDateString('tr-TR')} ${new Date().toLocaleTimeString('tr-TR')}</p>
-        <table><thead><tr><th>Hostname</th><th>Seri No</th><th>Wi-Fi MAC</th><th>Ethernet MAC</th><th>Tesis</th><th>Lokasyon</th><th>Durum</th></tr></thead><tbody>${rows}</tbody></table>
+        <table><thead><tr><th>Hostname</th><th>Seri No</th><th>Wi-Fi MAC</th><th>Ethernet MAC 1</th><th>Ethernet MAC 2</th><th>Tesis</th><th>Lokasyon</th><th>Durum</th></tr></thead><tbody>${rows}</tbody></table>
         <div class="footer">IT Envanter Takip Sistemi</div></body></html>`;
         const w = window.open('', '_blank', 'width=900,height=600');
         w.document.write(html); w.document.close(); w.focus();
@@ -403,7 +419,8 @@ export default function Kiosks() {
                                     { field: 'hostname', label: 'Hostname' },
                                     { field: 'serial_no', label: 'Seri No' },
                                     { field: 'wifi_mac', label: 'Wi-Fi MAC' },
-                                    { field: 'ethernet_mac', label: 'Eth MAC' },
+                                    { field: 'ethernet_mac', label: 'Eth MAC 1' },
+                                    { field: 'ethernet_mac_2', label: 'Eth MAC 2' },
                                     { field: 'tesis', label: 'Tesis' },
                                     { field: 'lokasyon', label: 'Lokasyon' },
                                     { field: 'status', label: 'Durum' },
@@ -420,7 +437,7 @@ export default function Kiosks() {
                         </thead>
                         <tbody>
                             {filtered.length === 0 ? (
-                                <tr><td colSpan={selectMode ? 10 : 10}><div className="empty-state"><Laptop /><p>Kayıt bulunamadı.</p></div></td></tr>
+                                <tr><td colSpan={selectMode ? 12 : 11}><div className="empty-state"><Laptop /><p>Kayıt bulunamadı.</p></div></td></tr>
                             ) : (
                                 filtered.map((k) => (
                                     <tr key={k.id}
@@ -436,6 +453,7 @@ export default function Kiosks() {
                                         <td style={{ fontFamily: 'monospace', color: '#64748b', fontSize: 12, letterSpacing: '0.05em' }}>{k.serial_no}</td>
                                         <td style={{ fontFamily: 'monospace', color: '#64748b', fontSize: 11 }}>{k.wifi_mac || '—'}</td>
                                         <td style={{ fontFamily: 'monospace', color: '#64748b', fontSize: 11 }}>{k.ethernet_mac || '—'}</td>
+                                        <td style={{ fontFamily: 'monospace', color: '#64748b', fontSize: 11 }}>{k.ethernet_mac_2 || '—'}</td>
                                         <td style={{ color: '#94a3b8', fontSize: 12 }}>{k.tesis || '—'}</td>
                                         <td style={{ color: '#94a3b8', fontSize: 12 }}>{k.lokasyon || '—'}</td>
                                         <td>

@@ -25,10 +25,12 @@ def bulk_create_kiosks(
     created = []
     skipped = []
     for data in items:
-        existing = db.query(Kiosk).filter(Kiosk.serial_no == data.serial_no).first()
-        if existing:
-            skipped.append(data.serial_no)
-            continue
+        # Allow duplicate serial_no for O.E.M. devices
+        if data.serial_no.strip().upper() != "O.E.M.":
+            existing = db.query(Kiosk).filter(Kiosk.serial_no == data.serial_no).first()
+            if existing:
+                skipped.append(data.serial_no)
+                continue
         obj = kiosk_crud.create_kiosk(db, data)
         create_audit_log(
             db,
@@ -69,9 +71,11 @@ def create_kiosk(
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
-    existing = db.query(Kiosk).filter(Kiosk.serial_no == data.serial_no).first()
-    if existing:
-        raise HTTPException(status_code=409, detail=f"Bu seri numarası zaten kayıtlı: {data.serial_no}")
+    # Allow duplicate serial_no for O.E.M. devices
+    if data.serial_no.strip().upper() != "O.E.M.":
+        existing = db.query(Kiosk).filter(Kiosk.serial_no == data.serial_no).first()
+        if existing:
+            raise HTTPException(status_code=409, detail=f"Bu seri numarası zaten kayıtlı: {data.serial_no}")
     obj = kiosk_crud.create_kiosk(db, data)
     create_audit_log(
         db,
