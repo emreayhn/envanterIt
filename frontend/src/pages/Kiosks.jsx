@@ -83,15 +83,26 @@ function parseCSV(text) {
         mappedHeaders.forEach((field, idx) => {
             if (field && cols[idx]) row[field] = cols[idx];
         });
+
+        // If there are extra columns beyond headers (script outputs eth0:MAC,eth1:MAC as separate CSV columns)
+        // collect them into ethernet_details
+        if (cols.length > mappedHeaders.length && mappedHeaders.includes('ethernet_details')) {
+            const extraCols = cols.slice(mappedHeaders.length).filter(Boolean);
+            if (extraCols.length > 0) {
+                row.ethernet_details = (row.ethernet_details || '') + ',' + extraCols.join(',');
+            }
+        }
+
         if (row.hostname && row.serial_no) {
-            // Handle ethernet_details column from legacy script (format: "eth0:MAC1,eth1:MAC2")
+            // Handle ethernet_details column from kiosk script (format: "eth0:MAC1,eth1:MAC2")
             let ethMac1 = row.ethernet_mac || '';
             let ethMac2 = row.ethernet_mac_2 || '';
             if (row.ethernet_details && !ethMac1) {
                 const parts = row.ethernet_details.split(',').map(p => p.trim()).filter(Boolean);
                 parts.forEach((part, idx) => {
-                    // Extract MAC from "eth0:AA:BB:CC:DD:EE:FF" format
-                    const mac = part.includes(':') ? part.substring(part.indexOf(':') + 1) : part;
+                    // Extract MAC from "eth0:AA:BB:CC:DD:EE:FF" format — skip interface name prefix
+                    const firstColon = part.indexOf(':');
+                    const mac = firstColon !== -1 ? part.substring(firstColon + 1) : part;
                     if (idx === 0 && !ethMac1) ethMac1 = mac;
                     else if (idx === 1 && !ethMac2) ethMac2 = mac;
                 });
