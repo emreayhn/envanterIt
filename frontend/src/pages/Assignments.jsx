@@ -3,9 +3,9 @@
  */
 import { useEffect, useState, useRef } from 'react';
 import {
-    ClipboardList, Monitor, User, Calendar, UserCheck,
-    Trash2, Plus, ChevronDown, ChevronUp, ArrowRightLeft, X,
-    Cpu, HardDrive, Search, History, Printer, Upload, FileSpreadsheet, AlertTriangle, CheckCircle, Package,
+    ClipboardList, Monitor, User, Calendar,
+    Trash2, Plus, ChevronDown, ChevronUp, ArrowRightLeft, X, ArrowLeft,
+    Cpu, HardDrive, Search, History, Printer, Upload, FileSpreadsheet, AlertTriangle, CheckCircle, Package, Server,
 } from 'lucide-react';
 import useStore from '../store/useStore';
 import Badge from '../components/atoms/Badge';
@@ -14,8 +14,32 @@ import AssignmentModal from '../components/organisms/AssignmentModal';
 import SearchableSelect from '../components/molecules/SearchableSelect';
 import {
     deleteAssignment, createAssignment,
-    getEmployees, getComputer, getAssignmentHistory, bulkCreateAssignments,
+    getEmployees, getComputer, getKiosk, getPrinter,
+    getAssignmentHistory, getAssignmentHistoryByType, bulkCreateAssignments, getCategories,
 } from '../services/api';
+
+/* ── Item display helper — tüm zimmet türleri için ──── */
+function getItemDisplay(a) {
+    switch (a.item_type) {
+        case 'kiosk':
+            return { Icon: Server,  label: a.kiosk_hostname || `Kiosk #${a.kiosk_id}`, serial: a.kiosk_serial };
+        case 'printer':
+            return { Icon: Printer, label: `${a.printer_brand || ''} ${a.printer_model || ''}`.trim() || `Yazıcı #${a.printer_id}`, serial: a.printer_serial };
+        case 'category_item':
+            return {
+                Icon: Package,
+                label: [a.item_name, a.item_brand, a.item_model].filter(Boolean).join(' ') || `Kalem #${a.item_id}`,
+                serial: a.item_serial,
+                extra: a.item_category_name,
+            };
+        default:
+            return {
+                Icon: Monitor,
+                label: a.computer_name ? `${a.computer_name} - ${a.computer_brand} ${a.computer_model}` : `${a.computer_brand || ''} ${a.computer_model || ''}`.trim(),
+                serial: a.computer_serial,
+            };
+    }
+}
 
 /* ── CSV parsing for zimmet ──────────────────────────── */
 const HEADER_MAP = {
@@ -73,6 +97,8 @@ function parseAssignmentCSV(text) {
 
 export default function Assignments() {
     const { assignments, fetchAssignments } = useStore();
+    const [selectedType, setSelectedType] = useState(null); // null = kart grid, {key,label,Icon,categoryId?} = filtreli liste
+    const [categories, setCategories]     = useState([]);
     const [assignOpen, setAssignOpen] = useState(false);
     const [expandedId, setExpandedId] = useState(null);
     const [detailData, setDetailData] = useState(null);
@@ -103,7 +129,10 @@ export default function Assignments() {
         }
     }, [toast]);
 
-    useEffect(() => { fetchAssignments(); }, []);
+    useEffect(() => {
+        fetchAssignments();
+        getCategories().then((r) => setCategories(r.data)).catch(() => {});
+    }, []);
 
     // CSV handlers
     const openCsvImport = () => { setShowCsvImport(true); setCsvRows([]); setCsvFileName(''); setCsvResult(null); };
@@ -127,8 +156,15 @@ export default function Assignments() {
     };
     const removeCsvRow = (idx) => setCsvRows((r) => r.filter((_, i) => i !== idx));
 
-    // Filter by person name
-    const filtered = assignments.filter((a) => {
+    const typeFiltered = assignments.filter((a) => {
+        if (!selectedType) return true;
+        if (selectedType.key === 'computer') return a.item_type === 'computer' || !a.item_type;
+        if (selectedType.key === 'kiosk')    return a.item_type === 'kiosk';
+        if (selectedType.key === 'printer')  return a.item_type === 'printer';
+        return a.item_type === 'category_item' && a.item_category_id === selectedType.categoryId;
+    });
+
+    const filtered = typeFiltered.filter((a) => {
         if (!searchQuery) return true;
         const q = searchQuery.toLowerCase();
         return (
@@ -136,12 +172,21 @@ export default function Assignments() {
             (a.computer_name || '').toLowerCase().includes(q) ||
             (a.computer_brand || '').toLowerCase().includes(q) ||
             (a.computer_model || '').toLowerCase().includes(q) ||
-            (a.computer_serial || '').toLowerCase().includes(q)
+            (a.computer_serial || '').toLowerCase().includes(q) ||
+            (a.kiosk_hostname || '').toLowerCase().includes(q) ||
+            (a.kiosk_serial || '').toLowerCase().includes(q) ||
+            (a.printer_brand || '').toLowerCase().includes(q) ||
+            (a.printer_model || '').toLowerCase().includes(q) ||
+            (a.printer_serial || '').toLowerCase().includes(q) ||
+            (a.item_name || '').toLowerCase().includes(q) ||
+            (a.item_brand || '').toLowerCase().includes(q) ||
+            (a.item_serial || '').toLowerCase().includes(q) ||
+            (a.item_category_name || '').toLowerCase().includes(q)
         );
     });
 
     const handleDelete = async (id) => {
-        if (!confirm('Bu zimmeti silmek istediğinize emin misiniz? Bilgisayar stoka döner.')) return;
+        if (!confirm('Bu zimmeti silmek istediğinize emin misiniz? Cihaz stoka döner.')) return;
         try {
             await deleteAssignment(id);
             fetchAssignments();
@@ -158,11 +203,19 @@ export default function Assignments() {
         }
         setExpandedId(a.id);
         try {
-            const [compRes, histRes] = await Promise.all([
-                getComputer(a.computer_id),
-                getAssignmentHistory(a.computer_id),
-            ]);
-            setDetailData(compRes.data);
+            let detailRes = null;
+            const itemType = a.item_type || 'computer';
+            const itemId = itemType === 'kiosk' ? a.kiosk_id
+                : itemType === 'printer' ? a.printer_id
+                : itemType === 'category_item' ? a.item_id
+                : a.computer_id;
+
+            if (itemType === 'computer') detailRes = await getComputer(a.computer_id);
+            else if (itemType === 'kiosk') detailRes = await getKiosk(a.kiosk_id);
+            else if (itemType === 'printer') detailRes = await getPrinter(a.printer_id);
+
+            const histRes = await getAssignmentHistoryByType(itemType, itemId);
+            setDetailData(detailRes?.data || null);
             setHistoryData(histRes.data);
         } catch {
             setDetailData(null);
@@ -186,8 +239,17 @@ export default function Assignments() {
         setTransferring(true);
         try {
             await deleteAssignment(transferId);
+            const itemType = assignment.item_type || 'computer';
+            const fkKey = itemType === 'kiosk' ? 'kiosk_id'
+                : itemType === 'printer' ? 'printer_id'
+                : itemType === 'category_item' ? 'item_id'
+                : 'computer_id';
+            const fkVal = itemType === 'kiosk' ? assignment.kiosk_id
+                : itemType === 'printer' ? assignment.printer_id
+                : itemType === 'category_item' ? assignment.item_id
+                : assignment.computer_id;
             const { data } = await createAssignment({
-                computer_id: assignment.computer_id,
+                [fkKey]: fkVal,
                 employee_id: Number(newEmployeeId),
             });
             // Show toast if the new employee's old computer was auto-returned to stock
@@ -226,7 +288,7 @@ export default function Assignments() {
     const handlePrint = () => {
         const selected = filtered.filter((a) => selectedIds.has(a.id));
         if (selected.length === 0) return;
-        const rows = selected.map((a) => `<tr><td>${a.employee_name || '—'}</td><td>${a.computer_name || ''} ${a.computer_brand} ${a.computer_model}</td><td style="font-family:monospace">${a.computer_serial || '—'}</td><td>${a.assigned_date || '—'}</td></tr>`).join('');
+        const rows = selected.map((a) => { const d = getItemDisplay(a); return `<tr><td>${a.employee_name || '—'}</td><td>${d.label}</td><td style="font-family:monospace">${d.serial || '—'}</td><td>${a.assigned_date || '—'}</td></tr>`; }).join('');
         const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Zimmet Listesi</title>
         <style>body{font-family:'Segoe UI',Arial,sans-serif;margin:30px;color:#1e293b}h1{font-size:20px;margin-bottom:4px}.subtitle{font-size:12px;color:#64748b;margin-bottom:20px}table{width:100%;border-collapse:collapse;font-size:12px}th{background:#f1f5f9;padding:8px 10px;text-align:left;font-weight:600;border-bottom:2px solid #e2e8f0;font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:#475569}td{padding:7px 10px;border-bottom:1px solid #e2e8f0}tr:nth-child(even){background:#f8fafc}.footer{margin-top:24px;font-size:11px;color:#94a3b8}@media print{body{margin:15px}}</style></head><body>
         <h1>Zimmet Listesi</h1>
@@ -275,22 +337,41 @@ export default function Assignments() {
             )}
             {/* Header */}
             <div className="page-header" style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
-                <div>
-                    <h2 className="page-title">
-                        <span className="page-title-icon"><ClipboardList style={{ width: 18, height: 18 }} /></span>
-                        Zimmetler
-                    </h2>
-                    <p className="page-subtitle">Bilgisayar — personel eşleştirmeleri</p>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                    {selectedType && (
+                        <button
+                            onClick={() => { setSelectedType(null); setSearchQuery(''); setSelectMode(false); setSelectedIds(new Set()); }}
+                            style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 10, padding: '8px 12px', cursor: 'pointer', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontFamily: 'Inter, sans-serif' }}
+                        >
+                            <ArrowLeft style={{ width: 16, height: 16 }} />
+                            Geri
+                        </button>
+                    )}
+                    <div>
+                        <h2 className="page-title">
+                            <span className="page-title-icon">
+                                {selectedType ? <selectedType.Icon style={{ width: 18, height: 18 }} /> : <ClipboardList style={{ width: 18, height: 18 }} />}
+                            </span>
+                            {selectedType ? `${selectedType.label} Zimmetleri` : 'Zimmetler'}
+                        </h2>
+                        <p className="page-subtitle">
+                            {selectedType ? `${typeFiltered.length} aktif zimmet` : 'Cihaz — personel eşleştirmeleri'}
+                        </p>
+                    </div>
                 </div>
                 <div style={{ display: 'flex', gap: 10 }}>
-                    <Button icon={Printer} onClick={toggleSelectMode} variant={selectMode ? 'ghost' : 'secondary'}>
-                        {selectMode ? 'Seçimi İptal' : 'Yazdır'}
-                    </Button>
+                    {selectedType && (
+                        <Button icon={Printer} onClick={toggleSelectMode} variant={selectMode ? 'ghost' : 'secondary'}>
+                            {selectMode ? 'Seçimi İptal' : 'Yazdır'}
+                        </Button>
+                    )}
                     {!selectMode && (
                         <>
-                            <Button icon={Upload} onClick={showCsvImport ? closeCsvImport : openCsvImport} variant={showCsvImport ? 'ghost' : undefined}>
-                                {showCsvImport ? 'CSV Kapat' : 'CSV ile Aktar'}
-                            </Button>
+                            {selectedType?.key === 'computer' && (
+                                <Button icon={Upload} onClick={showCsvImport ? closeCsvImport : openCsvImport} variant={showCsvImport ? 'ghost' : undefined}>
+                                    {showCsvImport ? 'CSV Kapat' : 'CSV ile Aktar'}
+                                </Button>
+                            )}
                             <Button icon={Plus} onClick={() => setAssignOpen(true)}>
                                 Zimmet Ata
                             </Button>
@@ -298,6 +379,62 @@ export default function Assignments() {
                     )}
                 </div>
             </div>
+
+            {/* ── Kart Grid (genel bakış) ─────────────── */}
+            {!selectedType && (() => {
+                const FIXED = [
+                    { key: 'computer', label: 'Bilgisayar', Icon: Monitor, color: '#6366f1' },
+                    { key: 'kiosk',    label: 'Kiosk',      Icon: Server,  color: '#06b6d4' },
+                    { key: 'printer',  label: 'Yazıcı',     Icon: Printer, color: '#f59e0b' },
+                ];
+                const countFor = (key, catId) => assignments.filter((a) => {
+                    if (key === 'computer') return a.item_type === 'computer' || !a.item_type;
+                    if (key === 'kiosk')    return a.item_type === 'kiosk';
+                    if (key === 'printer')  return a.item_type === 'printer';
+                    return a.item_type === 'category_item' && a.item_category_id === catId;
+                }).length;
+
+                const allTypes = [
+                    ...FIXED,
+                    ...categories.map((c) => ({ key: 'category_item', label: c.name, Icon: Package, color: c.color || '#8b5cf6', categoryId: c.id })),
+                ];
+
+                return (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 16, marginBottom: 32 }}>
+                        {allTypes.map((t, i) => {
+                            const count = countFor(t.key, t.categoryId);
+                            return (
+                                <button
+                                    key={`${t.key}-${t.categoryId ?? i}`}
+                                    onClick={() => setSelectedType(t)}
+                                    style={{
+                                        background: 'rgba(15,23,42,0.6)', border: `1px solid rgba(255,255,255,0.06)`,
+                                        borderRadius: 16, padding: '24px 20px', cursor: 'pointer', textAlign: 'left',
+                                        display: 'flex', flexDirection: 'column', gap: 14,
+                                        transition: 'all 0.2s', backdropFilter: 'blur(10px)',
+                                        fontFamily: 'Inter, sans-serif',
+                                    }}
+                                    onMouseEnter={(e) => { e.currentTarget.style.border = `1px solid ${t.color}44`; e.currentTarget.style.background = `rgba(15,23,42,0.8)`; e.currentTarget.style.transform = 'translateY(-2px)'; }}
+                                    onMouseLeave={(e) => { e.currentTarget.style.border = '1px solid rgba(255,255,255,0.06)'; e.currentTarget.style.background = 'rgba(15,23,42,0.6)'; e.currentTarget.style.transform = 'none'; }}
+                                >
+                                    <div style={{ width: 44, height: 44, borderRadius: 12, background: `${t.color}18`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                        <t.Icon style={{ width: 22, height: 22, color: t.color }} />
+                                    </div>
+                                    <div>
+                                        <p style={{ fontSize: 15, fontWeight: 700, color: '#e2e8f0', margin: '0 0 4px' }}>{t.label}</p>
+                                        <p style={{ fontSize: 13, color: count > 0 ? '#94a3b8' : '#475569', margin: 0 }}>
+                                            {count > 0 ? `${count} aktif zimmet` : 'Zimmet yok'}
+                                        </p>
+                                    </div>
+                                </button>
+                            );
+                        })}
+                    </div>
+                );
+            })()}
+
+            {/* ── Filtreli liste (kategori seçili) ──── */}
+            {selectedType && (<>
 
             {/* CSV Import */}
             {showCsvImport && (
@@ -417,39 +554,45 @@ export default function Assignments() {
                                     onClick={() => selectMode ? handleToggleSelect(a.id) : toggleExpand(a)}
                                 >
                                     {/* Left */}
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 20, flex: 1, minWidth: 0 }}>
-                                        {selectMode && (
-                                            <input type="checkbox" checked={selectedIds.has(a.id)} onChange={() => handleToggleSelect(a.id)} onClick={(e) => e.stopPropagation()} style={{ width: 18, height: 18, accentColor: '#6366f1', cursor: 'pointer', flexShrink: 0 }} />
-                                        )}
-                                        <div style={{
-                                            width: 48, height: 48, borderRadius: 14,
-                                            background: 'linear-gradient(135deg, rgba(99,102,241,0.12), rgba(6,182,212,0.08))',
-                                            display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-                                        }}>
-                                            <Monitor style={{ width: 22, height: 22, color: '#818cf8' }} />
-                                        </div>
-                                        <div style={{ minWidth: 0 }}>
-                                            <p style={{ fontSize: 15, fontWeight: 600, color: '#e2e8f0', marginBottom: 6 }}>
-                                                {a.computer_name ? `${a.computer_name} - ` : ''}{a.computer_brand} {a.computer_model}
-                                            </p>
-                                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16 }}>
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                                    <User style={{ width: 14, height: 14, color: '#6366f1' }} />
-                                                    <span style={{ fontSize: 13, color: '#94a3b8', fontWeight: 500 }}>{a.employee_name || `Personel #${a.employee_id}`}</span>
-                                                </div>
-                                                {a.computer_serial && (
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                                        <HardDrive style={{ width: 14, height: 14, color: '#475569' }} />
-                                                        <span style={{ fontSize: 12, color: '#64748b', fontFamily: 'monospace' }}>{a.computer_serial}</span>
-                                                    </div>
+                                    {(() => {
+                                        const { Icon, label, serial, extra } = getItemDisplay(a);
+                                        return (
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 20, flex: 1, minWidth: 0 }}>
+                                                {selectMode && (
+                                                    <input type="checkbox" checked={selectedIds.has(a.id)} onChange={() => handleToggleSelect(a.id)} onClick={(e) => e.stopPropagation()} style={{ width: 18, height: 18, accentColor: '#6366f1', cursor: 'pointer', flexShrink: 0 }} />
                                                 )}
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                                    <Calendar style={{ width: 14, height: 14, color: '#475569' }} />
-                                                    <span style={{ fontSize: 12, color: '#64748b' }}>{a.assigned_date}</span>
+                                                <div style={{
+                                                    width: 48, height: 48, borderRadius: 14,
+                                                    background: 'linear-gradient(135deg, rgba(99,102,241,0.12), rgba(6,182,212,0.08))',
+                                                    display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                                                }}>
+                                                    <Icon style={{ width: 22, height: 22, color: '#818cf8' }} />
+                                                </div>
+                                                <div style={{ minWidth: 0 }}>
+                                                    <p style={{ fontSize: 15, fontWeight: 600, color: '#e2e8f0', marginBottom: 6 }}>
+                                                        {label}
+                                                        {extra && <span style={{ fontSize: 11, color: '#64748b', marginLeft: 8, fontWeight: 400 }}>({extra})</span>}
+                                                    </p>
+                                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16 }}>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                                            <User style={{ width: 14, height: 14, color: '#6366f1' }} />
+                                                            <span style={{ fontSize: 13, color: '#94a3b8', fontWeight: 500 }}>{a.employee_name || `Personel #${a.employee_id}`}</span>
+                                                        </div>
+                                                        {serial && (
+                                                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                                                <HardDrive style={{ width: 14, height: 14, color: '#475569' }} />
+                                                                <span style={{ fontSize: 12, color: '#64748b', fontFamily: 'monospace' }}>{serial}</span>
+                                                            </div>
+                                                        )}
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                                            <Calendar style={{ width: 14, height: 14, color: '#475569' }} />
+                                                            <span style={{ fontSize: 12, color: '#64748b' }}>{a.assigned_date}</span>
+                                                        </div>
+                                                    </div>
                                                 </div>
                                             </div>
-                                        </div>
-                                    </div>
+                                        );
+                                    })()}
 
                                     {/* Right */}
                                     {!selectMode && (
@@ -491,24 +634,58 @@ export default function Assignments() {
                                         padding: '0 24px 24px', borderTop: '1px solid rgba(99,102,241,0.06)',
                                         animation: 'pageSlide 0.25s ease-out',
                                     }}>
-                                        {/* Computer Details */}
+                                        {/* Item Details */}
                                         <div style={{
                                             display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
                                             gap: 12, marginTop: 20,
                                         }}>
                                             {detailData ? (
                                                 <>
-                                                    <DetailItem label="Marka" value={detailData.brand} />
-                                                    <DetailItem label="Model" value={detailData.model} />
-                                                    <DetailItem label="Seri No" value={detailData.serial_no} icon={<HardDrive style={{ width: 13, height: 13, color: '#475569' }} />} mono />
-                                                    <DetailItem label="RAM" value={detailData.specifications?.ram || '—'} icon={<Cpu style={{ width: 13, height: 13, color: '#475569' }} />} />
-                                                    <DetailItem label="CPU" value={detailData.specifications?.cpu || '—'} icon={<Cpu style={{ width: 13, height: 13, color: '#475569' }} />} />
-                                                    <DetailItem label="PC Adı" value={detailData.computer_name || '—'} />
+                                                    {(a.item_type === 'computer' || !a.item_type) && (
+                                                        <>
+                                                            <DetailItem label="Marka" value={detailData.brand} />
+                                                            <DetailItem label="Model" value={detailData.model} />
+                                                            <DetailItem label="Seri No" value={detailData.serial_no} icon={<HardDrive style={{ width: 13, height: 13, color: '#475569' }} />} mono />
+                                                            <DetailItem label="RAM" value={detailData.specifications?.ram || '—'} icon={<Cpu style={{ width: 13, height: 13, color: '#475569' }} />} />
+                                                            <DetailItem label="CPU" value={detailData.specifications?.cpu || '—'} icon={<Cpu style={{ width: 13, height: 13, color: '#475569' }} />} />
+                                                            <DetailItem label="PC Adı" value={detailData.computer_name || '—'} />
+                                                        </>
+                                                    )}
+                                                    {a.item_type === 'kiosk' && (
+                                                        <>
+                                                            <DetailItem label="Hostname" value={detailData.hostname} />
+                                                            <DetailItem label="Seri No" value={detailData.serial_no} icon={<HardDrive style={{ width: 13, height: 13, color: '#475569' }} />} mono />
+                                                            <DetailItem label="Tesis" value={detailData.tesis || '—'} />
+                                                            <DetailItem label="Lokasyon" value={detailData.lokasyon || '—'} />
+                                                            {detailData.ethernet_mac && <DetailItem label="Ethernet MAC" value={detailData.ethernet_mac} mono />}
+                                                            {detailData.ethernet_mac_2 && <DetailItem label="Ethernet MAC 2" value={detailData.ethernet_mac_2} mono />}
+                                                        </>
+                                                    )}
+                                                    {a.item_type === 'printer' && (
+                                                        <>
+                                                            <DetailItem label="Marka" value={detailData.brand} />
+                                                            <DetailItem label="Model" value={detailData.model} />
+                                                            <DetailItem label="Seri No" value={detailData.serial_no} icon={<HardDrive style={{ width: 13, height: 13, color: '#475569' }} />} mono />
+                                                            <DetailItem label="Tesis" value={detailData.tesis || '—'} />
+                                                            <DetailItem label="Lokasyon" value={detailData.lokasyon || '—'} />
+                                                        </>
+                                                    )}
+                                                    {a.item_type === 'category_item' && (
+                                                        <>
+                                                            {detailData.name && <DetailItem label="Ad" value={detailData.name} />}
+                                                            {detailData.brand && <DetailItem label="Marka" value={detailData.brand} />}
+                                                            {detailData.model && <DetailItem label="Model" value={detailData.model} />}
+                                                            <DetailItem label="Seri No" value={detailData.serial_no} icon={<HardDrive style={{ width: 13, height: 13, color: '#475569' }} />} mono />
+                                                            {detailData.tesis && <DetailItem label="Tesis" value={detailData.tesis} />}
+                                                        </>
+                                                    )}
                                                     <DetailItem label="Durum" value={<Badge status={detailData.status} />} />
                                                     <DetailItem label="Şu An Kimde" value={a.employee_name} icon={<User style={{ width: 13, height: 13, color: '#6366f1' }} />} highlight />
                                                 </>
                                             ) : (
-                                                <p style={{ color: '#475569', fontSize: 13, gridColumn: '1 / -1' }}>Bilgisayar detayları yükleniyor...</p>
+                                                a.item_type === 'category_item'
+                                                    ? <DetailItem label="Şu An Kimde" value={a.employee_name} icon={<User style={{ width: 13, height: 13, color: '#6366f1' }} />} highlight />
+                                                    : <p style={{ color: '#475569', fontSize: 13, gridColumn: '1 / -1' }}>Cihaz detayları yükleniyor...</p>
                                             )}
                                         </div>
 
@@ -573,11 +750,16 @@ export default function Assignments() {
                 </div>
             )}
 
+            </>)}
+
             {/* Create Assignment Modal */}
             <AssignmentModal
                 isOpen={assignOpen}
                 onClose={() => setAssignOpen(false)}
                 onSuccess={() => fetchAssignments()}
+                defaultItemType={selectedType?.key === 'category_item' ? 'category_item' : (selectedType?.key || 'computer')}
+                defaultCategoryId={selectedType?.categoryId || null}
+                locked={!!selectedType}
             />
 
             {/* Transfer Modal */}
@@ -610,8 +792,7 @@ export default function Assignments() {
                                 <div>
                                     <h2 style={{ fontSize: 16, fontWeight: 700, color: '#f1f5f9', margin: 0 }}>Zimmeti Aktar</h2>
                                     <p style={{ fontSize: 12, color: '#64748b', margin: 0 }}>
-                                        {assignments.find((x) => x.id === transferId)?.computer_brand}{' '}
-                                        {assignments.find((x) => x.id === transferId)?.computer_model}
+                                        {(() => { const x = assignments.find((a) => a.id === transferId); return x ? getItemDisplay(x).label : ''; })()}
                                     </p>
                                 </div>
                             </div>

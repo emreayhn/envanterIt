@@ -3,12 +3,12 @@
  */
 import { useEffect, useState, useRef } from 'react';
 import { Plus, X, Laptop, Save, Upload, FileSpreadsheet, AlertTriangle, CheckCircle, ArrowLeft, Printer, Trash2, Edit, Search, ArrowUpDown, ChevronDown, ChevronUp, Hash, Calendar, Tag } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import useStore from '../store/useStore';
 import Button from '../components/atoms/Button';
 import Badge from '../components/atoms/Badge';
 import AppModal from '../components/atoms/AppModal';
-import { createKiosk, updateKiosk, deleteKiosk, bulkCreateKiosks } from '../services/api';
+import { createKiosk, updateKiosk, deleteKiosk, bulkCreateKiosks, getAssignments } from '../services/api';
 
 const emptyForm = {
     hostname: '', serial_no: '', wifi_mac: '', ethernet_mac: '', ethernet_mac_2: '',
@@ -124,6 +124,8 @@ function parseCSV(text) {
 
 export default function Kiosks() {
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
+    const statusFromUrl = searchParams.get('status') || '';
     const { kiosks, fetchKiosks } = useStore();
     const [showForm, setShowForm] = useState(false);
     const [editingId, setEditingId] = useState(null);
@@ -153,10 +155,19 @@ export default function Kiosks() {
     const [modal, setModal] = useState({ open: false, title: '', message: '', type: 'alert', details: null, onConfirm: null });
     const closeModal = () => setModal((m) => ({ ...m, open: false }));
 
-    useEffect(() => { fetchKiosks(); }, []);
+    const [assignedByKiosk, setAssignedByKiosk] = useState({});
+    useEffect(() => {
+        fetchKiosks();
+        getAssignments().then((r) => {
+            const map = {};
+            r.data.forEach((a) => { if (a.kiosk_id) map[a.kiosk_id] = a.employee_name; });
+            setAssignedByKiosk(map);
+        }).catch(() => {});
+    }, []);
 
     const filtered = kiosks
         .filter((k) => {
+            if (statusFromUrl && k.status !== statusFromUrl) return false;
             const q = search.toLowerCase();
             return k.hostname?.toLowerCase().includes(q) || k.serial_no?.toLowerCase().includes(q);
         })
@@ -435,6 +446,7 @@ export default function Kiosks() {
                                     { field: 'tesis', label: 'Tesis' },
                                     { field: 'lokasyon', label: 'Lokasyon' },
                                     { field: 'status', label: 'Durum' },
+                                    { field: 'assigned_to', label: 'Zimmetli Personel' },
                                 ].map(({ field, label }) => (
                                     <th key={field} onClick={() => toggleSort(field)} style={{ cursor: 'pointer' }}>
                                         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
@@ -472,6 +484,9 @@ export default function Kiosks() {
                                                 <Badge status={k.status} />
                                                 {k.fault_description && <span title={k.fault_description}><AlertTriangle style={{ width: 14, height: 14, color: '#f87171', animation: 'pulse 2s infinite' }} /></span>}
                                             </div>
+                                        </td>
+                                        <td style={{ fontSize: 12, color: assignedByKiosk[k.id] ? '#a5b4fc' : '#334155' }}>
+                                            {assignedByKiosk[k.id] || '—'}
                                         </td>
                                         {!selectMode && (
                                             <td>

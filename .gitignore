@@ -31,5 +31,9 @@ npm-debug.log*
 # SSL certificates
 ssl/
 
+# Local development overrides
+docker-compose.local.yml
+frontend/nginx.local.conf
+
 # Database
 *.db

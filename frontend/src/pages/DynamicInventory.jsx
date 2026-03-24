@@ -4,7 +4,7 @@
  * renders form/table/CSV/print with only the configured columns.
  */
 import { useEffect, useState, useRef, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import {
     Plus, X, Save, Upload, FileSpreadsheet, AlertTriangle, CheckCircle,
     ArrowLeft, Printer, Trash2, Edit, Search, ArrowUpDown, Package,
@@ -14,7 +14,7 @@ import Badge from '../components/atoms/Badge';
 import AppModal from '../components/atoms/AppModal';
 import {
     getCategoryBySlug, getCategoryItems, createCategoryItem,
-    updateCategoryItem, deleteCategoryItem, bulkCreateCategoryItems,
+    updateCategoryItem, deleteCategoryItem, bulkCreateCategoryItems, getAssignments,
 } from '../services/api';
 
 /* ── Column meta ────────────────────────────────────── */
@@ -100,6 +100,8 @@ function parseCSV(text, columns, categoryId) {
 export default function DynamicInventory() {
     const { slug } = useParams();
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
+    const statusFromUrl = searchParams.get('status') || '';
 
     // Category config
     const [category, setCategory] = useState(null);
@@ -161,12 +163,24 @@ export default function DynamicInventory() {
         } catch { /* ignore */ }
     }, [slug, category]);
 
+    const [assignedByItem, setAssignedByItem] = useState({});
     useEffect(() => { fetchCategory(); }, [slug]);
-    useEffect(() => { if (category) { fetchItems(); setLoading(false); } }, [category]);
+    useEffect(() => {
+        if (category) {
+            fetchItems();
+            setLoading(false);
+            getAssignments().then((r) => {
+                const map = {};
+                r.data.forEach((a) => { if (a.item_id) map[a.item_id] = a.employee_name; });
+                setAssignedByItem(map);
+            }).catch(() => {});
+        }
+    }, [category]);
 
     // ── Derived ────────────────────────
     const filtered = items
         .filter((item) => {
+            if (statusFromUrl && item.status !== statusFromUrl) return false;
             const q = search.toLowerCase();
             return columns.some((col) => (item[col] || '').toLowerCase().includes(q));
         })
@@ -453,6 +467,7 @@ export default function DynamicInventory() {
                                 <th onClick={() => toggleSort('status')} style={{ cursor: 'pointer' }}>
                                     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>Durum <ArrowUpDown style={{ width: 12, height: 12, opacity: sortField === 'status' ? 1 : 0.3 }} /></span>
                                 </th>
+                                <th>Zimmetli Personel</th>
                                 {!selectMode && <th>İşlem</th>}
                             </tr>
                         </thead>
@@ -486,6 +501,9 @@ export default function DynamicInventory() {
                                                 <Badge status={item.status} />
                                                 {item.fault_description && <span title={item.fault_description}><AlertTriangle style={{ width: 14, height: 14, color: '#f87171', animation: 'pulse 2s infinite' }} /></span>}
                                             </div>
+                                        </td>
+                                        <td style={{ fontSize: 12, color: assignedByItem[item.id] ? '#a5b4fc' : '#334155' }}>
+                                            {assignedByItem[item.id] || '—'}
                                         </td>
                                         {!selectMode && (
                                             <td>

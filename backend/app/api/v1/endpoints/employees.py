@@ -8,7 +8,9 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.security import get_current_user, CurrentUser
 from app.schemas.employee import EmployeeCreate, EmployeeUpdate, EmployeeResponse, EmployeeQuickCreate
+from app.schemas.assignment import AssignmentResponse
 from app.crud import employee as employee_crud
+from app.crud import assignment as assignment_crud
 from app.crud.audit_log import create_audit_log
 from app.models.assignment import Assignment
 from app.models.license_assignment import LicenseAssignment
@@ -168,6 +170,17 @@ def delete_unassigned_employees(
         "message": f"{count} adet atanmamış personel başarıyla silindi.",
     }
 
+
+
+@router.get("/{employee_id}/assignments", response_model=list[AssignmentResponse])
+def get_employee_assignments(
+    employee_id: int,
+    db: Session = Depends(get_db),
+):
+    """Bir personelin aktif zimmetlerini döndür (returned_date IS NULL)."""
+    from app.api.v1.endpoints.assignments import _to_response
+    rows = assignment_crud.get_assignments_for_employee(db, employee_id)
+    return [_to_response(r) for r in rows]
 
 
 @router.post("/bulk", status_code=201)

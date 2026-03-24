@@ -119,6 +119,11 @@ export const updateProcessStep = (stepId, data) => api.put(`/processes/steps/${s
 export const deleteProcessStep = (stepId) => api.delete(`/processes/steps/${stepId}`);
 export const reorderProcessSteps = (processId, stepIds) => api.put(`/processes/${processId}/steps/reorder`, stepIds);
 
+// ── Assignments — zimmet yardımcıları ───────────────────
+export const getAvailableItems = (itemType) => api.get(`/assignments/available-items/${itemType}`);
+export const getAssignmentHistoryByType = (itemType, itemId) => api.get(`/assignments/history/${itemType}/${itemId}`);
+export const getEmployeeAssignments = (employeeId) => api.get(`/employees/${employeeId}/assignments`);
+
 // ── Dashboard ───────────────────────────────────────────
 export const getDashboardStats = () => api.get('/dashboard/stats');
 

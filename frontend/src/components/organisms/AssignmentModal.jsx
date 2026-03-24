@@ -1,37 +1,80 @@
 /**
- * Organism: AssignmentModal — with searchable dropdowns.
+ * Organism: AssignmentModal — cihaz türü seçimi + personel seçimi.
  */
 import { useState, useEffect } from 'react';
-import { X, ClipboardList } from 'lucide-react';
-import { getComputers, getEmployees, createAssignment } from '../../services/api';
+import { X, ClipboardList, Monitor, Server, Printer, Package } from 'lucide-react';
+import { getEmployees, createAssignment, getAvailableItems, getCategories } from '../../services/api';
 import SearchableSelect from '../molecules/SearchableSelect';
 
-export default function AssignmentModal({ isOpen, onClose, onSuccess }) {
-    const [computers, setComputers] = useState([]);
-    const [employees, setEmployees] = useState([]);
-    const [computerId, setComputerId] = useState('');
-    const [employeeId, setEmployeeId] = useState('');
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState('');
+const FIXED_TYPES = [
+    { key: 'computer', label: 'Bilgisayar', Icon: Monitor },
+    { key: 'kiosk',    label: 'Kiosk',      Icon: Server  },
+    { key: 'printer',  label: 'Yazıcı',     Icon: Printer },
+];
+
+export default function AssignmentModal({ isOpen, onClose, onSuccess, defaultItemType = 'computer', defaultCategoryId = null, locked = false }) {
+    const [itemType, setItemType]         = useState(defaultItemType);
+    const [categoryId, setCategoryId]     = useState(defaultCategoryId); // dinamik kategori seçimi için
+    const [categories, setCategories]     = useState([]);
+    const [allCategoryItems, setAllCategoryItems] = useState([]);
+    const [items, setItems]               = useState([]);
+    const [employees, setEmployees]       = useState([]);
+    const [itemId, setItemId]             = useState('');
+    const [employeeId, setEmployeeId]     = useState('');
+    const [loading, setLoading]           = useState(false);
+    const [error, setError]               = useState('');
 
     useEffect(() => {
         if (isOpen) {
-            setComputerId('');
+            setItemId('');
             setEmployeeId('');
             setError('');
-            getComputers({ status: 'STOCK' })
-                .then((res) => setComputers(res.data))
-                .catch(() => setComputers([]));
-            getEmployees()
-                .then((res) => setEmployees(res.data))
-                .catch(() => setEmployees([]));
+            setItemType(defaultItemType || 'computer');
+            setCategoryId(defaultCategoryId || null);
+            getEmployees().then((res) => setEmployees(res.data)).catch(() => setEmployees([]));
+            getCategories().then((res) => setCategories(res.data)).catch(() => setCategories([]));
         }
     }, [isOpen]);
 
-    const computerOptions = computers.map((c) => ({
-        value: String(c.id),
-        label: c.computer_name ? `${c.computer_name} — ${c.brand} ${c.model}` : `${c.brand} ${c.model}`,
-        sub: c.serial_no,
+    // Sabit türler değişince listeyi çek
+    useEffect(() => {
+        if (!isOpen || itemType === 'category_item') return;
+        setItemId('');
+        setError('');
+        getAvailableItems(itemType)
+            .then((res) => setItems(res.data))
+            .catch(() => setItems([]));
+    }, [isOpen, itemType]);
+
+    // Dinamik kategori seçilince tüm category_item'ları çek ve filtrele
+    useEffect(() => {
+        if (!isOpen || itemType !== 'category_item') return;
+        setItemId('');
+        setError('');
+        getAvailableItems('category_item')
+            .then((res) => {
+                setAllCategoryItems(res.data);
+                const filtered = categoryId ? res.data.filter((i) => i.category_id === categoryId) : res.data;
+                setItems(filtered);
+            })
+            .catch(() => { setAllCategoryItems([]); setItems([]); });
+    }, [isOpen, itemType, categoryId]);
+
+    const handleSelectCategory = (cat) => {
+        setItemType('category_item');
+        setCategoryId(cat.id);
+        setItemId('');
+        setError('');
+        // allCategoryItems zaten doluysa yeniden fetch etme, sadece filtrele
+        if (allCategoryItems.length > 0) {
+            setItems(allCategoryItems.filter((i) => i.category_id === cat.id));
+        }
+    };
+
+    const itemOptions = items.map((i) => ({
+        value: String(i.id),
+        label: i.label,
+        sub: i.serial,
     }));
 
     const employeeOptions = employees.map((e) => ({
@@ -41,15 +84,16 @@ export default function AssignmentModal({ isOpen, onClose, onSuccess }) {
     }));
 
     const handleSubmit = async () => {
-        if (!computerId || !employeeId) {
-            setError('Lütfen bilgisayar ve personel seçin.');
+        if (!itemId || !employeeId) {
+            setError('Lütfen cihaz ve personel seçin.');
             return;
         }
+        const fkKey = itemType === 'category_item' ? 'item_id' : `${itemType}_id`;
         setLoading(true);
         setError('');
         try {
             await createAssignment({
-                computer_id: Number(computerId),
+                [fkKey]: Number(itemId),
                 employee_id: Number(employeeId),
             });
             onSuccess?.();
@@ -62,6 +106,10 @@ export default function AssignmentModal({ isOpen, onClose, onSuccess }) {
     };
 
     if (!isOpen) return null;
+
+    const selectedType = itemType === 'category_item'
+        ? { label: categories.find((c) => c.id === categoryId)?.name || 'Envanter Kalemi' }
+        : FIXED_TYPES.find((t) => t.key === itemType);
 
     return (
         <div
@@ -76,7 +124,7 @@ export default function AssignmentModal({ isOpen, onClose, onSuccess }) {
                 onClick={(e) => e.stopPropagation()}
                 style={{
                     background: '#111827', border: '1px solid #1e293b',
-                    borderRadius: 16, padding: 32, width: '100%', maxWidth: 420,
+                    borderRadius: 16, padding: 32, width: '100%', maxWidth: 440,
                     boxShadow: '0 20px 60px rgba(0,0,0,0.5)',
                 }}
             >
@@ -92,13 +140,69 @@ export default function AssignmentModal({ isOpen, onClose, onSuccess }) {
                         </div>
                         <div>
                             <h2 style={{ fontSize: 16, fontWeight: 700, color: '#f1f5f9', margin: 0 }}>Zimmet Ata</h2>
-                            <p style={{ fontSize: 12, color: '#64748b', margin: 0 }}>Bilgisayar → Personel</p>
+                            <p style={{ fontSize: 12, color: '#64748b', margin: 0 }}>
+                            {itemType === 'category_item' && categoryId
+                                ? `${categories.find((c) => c.id === categoryId)?.name || 'Envanter'} → Personel`
+                                : 'Cihaz → Personel'}
+                        </p>
                         </div>
                     </div>
                     <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b', padding: 4, borderRadius: 8 }}>
                         <X style={{ width: 20, height: 20 }} />
                     </button>
                 </div>
+
+                {/* Cihaz türü sekmeleri — locked modda gizli */}
+                {locked && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 20, padding: '8px 12px', borderRadius: 10, background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.15)' }}>
+                        <span style={{ fontSize: 12, color: '#818cf8', fontWeight: 600 }}>{selectedType?.label}</span>
+                        <span style={{ fontSize: 11, color: '#475569' }}>zimmetleri görüntüleniyor</span>
+                    </div>
+                )}
+                {!locked && <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 20 }}>
+                    {/* Sabit türler */}
+                    {FIXED_TYPES.map(({ key, label, Icon }) => {
+                        const active = itemType === key;
+                        return (
+                            <button
+                                key={key}
+                                onClick={() => { setItemType(key); setCategoryId(null); }}
+                                style={{
+                                    display: 'flex', flexDirection: 'column', alignItems: 'center',
+                                    gap: 4, padding: '8px 12px', borderRadius: 10, cursor: 'pointer',
+                                    border: active ? '1px solid rgba(99,102,241,0.4)' : '1px solid rgba(255,255,255,0.05)',
+                                    background: active ? 'rgba(99,102,241,0.12)' : 'rgba(255,255,255,0.02)',
+                                    color: active ? '#818cf8' : '#475569',
+                                    transition: 'all 0.15s', fontFamily: 'Inter, sans-serif',
+                                }}
+                            >
+                                <Icon style={{ width: 16, height: 16 }} />
+                                <span style={{ fontSize: 10, fontWeight: 600 }}>{label}</span>
+                            </button>
+                        );
+                    })}
+                    {/* Dinamik kategoriler */}
+                    {categories.map((cat) => {
+                        const active = itemType === 'category_item' && categoryId === cat.id;
+                        return (
+                            <button
+                                key={cat.id}
+                                onClick={() => handleSelectCategory(cat)}
+                                style={{
+                                    display: 'flex', flexDirection: 'column', alignItems: 'center',
+                                    gap: 4, padding: '8px 12px', borderRadius: 10, cursor: 'pointer',
+                                    border: active ? `1px solid ${cat.color || '#6366f1'}66` : '1px solid rgba(255,255,255,0.05)',
+                                    background: active ? `${cat.color || '#6366f1'}18` : 'rgba(255,255,255,0.02)',
+                                    color: active ? (cat.color || '#818cf8') : '#475569',
+                                    transition: 'all 0.15s', fontFamily: 'Inter, sans-serif',
+                                }}
+                            >
+                                <Package style={{ width: 16, height: 16 }} />
+                                <span style={{ fontSize: 10, fontWeight: 600 }}>{cat.name}</span>
+                            </button>
+                        );
+                    })}
+                </div>}
 
                 {error && (
                     <div style={{
@@ -110,23 +214,23 @@ export default function AssignmentModal({ isOpen, onClose, onSuccess }) {
                     </div>
                 )}
 
-                {/* Computer select */}
+                {/* Cihaz seç */}
                 <div style={{ marginBottom: 20 }}>
                     <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#94a3b8', marginBottom: 8 }}>
-                        Bilgisayar (Stokta)
+                        {selectedType?.label} (Stokta)
                     </label>
                     <SearchableSelect
-                        options={computerOptions}
-                        value={computerId}
-                        onChange={(v) => { setComputerId(v); setError(''); }}
-                        placeholder="Bilgisayar ara veya seç..."
+                        options={itemOptions}
+                        value={itemId}
+                        onChange={(v) => { setItemId(v); setError(''); }}
+                        placeholder={`${selectedType?.label} ara veya seç...`}
                     />
-                    {computers.length === 0 && (
-                        <p style={{ fontSize: 11, color: '#f59e0b', marginTop: 6 }}>Stokta bilgisayar yok.</p>
+                    {items.length === 0 && (
+                        <p style={{ fontSize: 11, color: '#f59e0b', marginTop: 6 }}>Stokta {selectedType?.label.toLowerCase()} yok.</p>
                     )}
                 </div>
 
-                {/* Employee select */}
+                {/* Personel seç */}
                 <div style={{ marginBottom: 24 }}>
                     <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#94a3b8', marginBottom: 8 }}>
                         Personel

@@ -3,12 +3,12 @@
  */
 import { useEffect, useState, useRef } from 'react';
 import { Plus, X, Printer as PrinterIcon, Save, Upload, FileSpreadsheet, AlertTriangle, CheckCircle, ArrowLeft, Printer, Trash2, Edit, Search, ArrowUpDown } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import useStore from '../store/useStore';
 import Button from '../components/atoms/Button';
 import Badge from '../components/atoms/Badge';
 import AppModal from '../components/atoms/AppModal';
-import { createPrinter, updatePrinter, deletePrinter, bulkCreatePrinters } from '../services/api';
+import { createPrinter, updatePrinter, deletePrinter, bulkCreatePrinters, getAssignments } from '../services/api';
 
 const emptyForm = {
     printer_name: '', brand: '', model: '', serial_no: '',
@@ -104,6 +104,8 @@ function parseCSV(text) {
 
 export default function Printers() {
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
+    const statusFromUrl = searchParams.get('status') || '';
     const { printers, fetchPrinters } = useStore();
     const [showForm, setShowForm] = useState(false);
     const [editingId, setEditingId] = useState(null);
@@ -133,10 +135,19 @@ export default function Printers() {
     const [modal, setModal] = useState({ open: false, title: '', message: '', type: 'alert', details: null, onConfirm: null });
     const closeModal = () => setModal((m) => ({ ...m, open: false }));
 
-    useEffect(() => { fetchPrinters(); }, []);
+    const [assignedByPrinter, setAssignedByPrinter] = useState({});
+    useEffect(() => {
+        fetchPrinters();
+        getAssignments().then((r) => {
+            const map = {};
+            r.data.forEach((a) => { if (a.printer_id) map[a.printer_id] = a.employee_name; });
+            setAssignedByPrinter(map);
+        }).catch(() => {});
+    }, []);
 
     const filtered = printers
         .filter((p) => {
+            if (statusFromUrl && p.status !== statusFromUrl) return false;
             const q = search.toLowerCase();
             return p.printer_name?.toLowerCase().includes(q) || p.brand?.toLowerCase().includes(q) || p.model?.toLowerCase().includes(q) || p.serial_no?.toLowerCase().includes(q);
         })
@@ -424,6 +435,7 @@ export default function Printers() {
                                     { field: 'tesis', label: 'Tesis' },
                                     { field: 'lokasyon', label: 'Lokasyon' },
                                     { field: 'status', label: 'Durum' },
+                                    { field: 'assigned_to', label: 'Zimmetli Personel' },
                                 ].map(({ field, label }) => (
                                     <th key={field} onClick={() => toggleSort(field)} style={{ cursor: 'pointer' }}>
                                         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
@@ -462,6 +474,9 @@ export default function Printers() {
                                                 <Badge status={p.status} />
                                                 {p.fault_description && <span title={p.fault_description}><AlertTriangle style={{ width: 14, height: 14, color: '#f87171', animation: 'pulse 2s infinite' }} /></span>}
                                             </div>
+                                        </td>
+                                        <td style={{ fontSize: 12, color: assignedByPrinter[p.id] ? '#a5b4fc' : '#334155' }}>
+                                            {assignedByPrinter[p.id] || '—'}
                                         </td>
                                         {!selectMode && (
                                             <td>

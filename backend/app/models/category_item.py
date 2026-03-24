@@ -5,6 +5,7 @@ All possible columns exist; category config determines which are shown.
 
 import enum
 from sqlalchemy import Column, Integer, String, Enum, ForeignKey, DateTime, func
+from sqlalchemy.orm import relationship
 from app.core.database import Base
 
 
@@ -32,6 +33,8 @@ class InventoryItem(Base):
     ethernet_mac = Column(String(50), nullable=True, comment="Ethernet MAC")
     tesis = Column(String(150), nullable=True, comment="Tesis")
     lokasyon = Column(String(150), nullable=True, comment="Lokasyon")
+
+    category = relationship("InventoryCategory", lazy="joined")
 
     status = Column(
         Enum(ItemStatus),

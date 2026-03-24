@@ -1,12 +1,25 @@
 /**
  * Page: Employees — personel ekleme, düzenleme, silme, CSV import (tablo görünümü + arama).
  */
-import { useEffect, useState, useRef } from 'react';
-import { Plus, X, Users, Trash2, Search, MapPin, Phone, Briefcase, Building, Edit, Save, Upload, FileSpreadsheet, AlertTriangle, CheckCircle, UserMinus } from 'lucide-react';
+import { useEffect, useState, useRef, Fragment } from 'react';
+import { Plus, X, Users, Trash2, Search, MapPin, Phone, Briefcase, Building, Edit, Save, Upload, FileSpreadsheet, AlertTriangle, CheckCircle, UserMinus, Monitor, Server, Printer, Package, ChevronDown, ChevronUp } from 'lucide-react';
 import useStore from '../store/useStore';
 import Button from '../components/atoms/Button';
 import AppModal from '../components/atoms/AppModal';
-import { createEmployee, updateEmployee, deleteEmployee, bulkCreateEmployees, bulkDeleteUnassignedEmployees } from '../services/api';
+import { createEmployee, updateEmployee, deleteEmployee, bulkCreateEmployees, bulkDeleteUnassignedEmployees, getEmployeeAssignments, getCategories, getAssignments } from '../services/api';
+
+const FIXED_TYPES = [
+    { key: 'computer',  label: 'Bilgisayar', Icon: Monitor  },
+    { key: 'kiosk',     label: 'Kiosk',       Icon: Server   },
+    { key: 'printer',   label: 'Yazıcı',      Icon: Printer  },
+];
+
+function getItemLabel(a) {
+    if (a.item_type === 'kiosk')         return { primary: a.kiosk_hostname || '—', secondary: a.kiosk_serial || '' };
+    if (a.item_type === 'printer')       return { primary: a.printer_name || [a.printer_brand, a.printer_model].filter(Boolean).join(' ') || '—', secondary: a.printer_serial || '' };
+    if (a.item_type === 'category_item') return { primary: a.item_name || [a.item_brand, a.item_model].filter(Boolean).join(' ') || '—', secondary: a.item_serial || '' };
+    return { primary: a.computer_name || [a.computer_brand, a.computer_model].filter(Boolean).join(' ') || '—', secondary: a.computer_serial || '' };
+}
 
 /* ── CSV column mapping ──────────────────────────────── */
 const HEADER_MAP = {
@@ -87,6 +100,21 @@ export default function Employees() {
     const [saving, setSaving] = useState(false);
     const [search, setSearch] = useState('');
 
+    // Assignment detail expand
+    const [expandedId, setExpandedId] = useState(null);
+    const [assignmentCache, setAssignmentCache] = useState({});
+    const [categories, setCategories] = useState([]);
+    const [loadingExpand, setLoadingExpand] = useState(false);
+    // Tüm aktif zimmetler (tablo kolonları için)
+    const [allAssignments, setAllAssignments] = useState([]);
+    // Zimmet filtresi — seçili kolon key'leri (hepsi seçiliyse filtre yok)
+    const [activeFilters, setActiveFilters] = useState(new Set());
+    const toggleFilter = (key) => setActiveFilters((prev) => {
+        const next = new Set(prev);
+        next.has(key) ? next.delete(key) : next.add(key);
+        return next;
+    });
+
     // CSV import state
     const [showCsvImport, setShowCsvImport] = useState(false);
     const [csvRows, setCsvRows] = useState([]);
@@ -95,12 +123,57 @@ export default function Employees() {
     const [csvResult, setCsvResult] = useState(null);
     const [isDragging, setIsDragging] = useState(false);
     const fileInputRef = useRef(null);
+    const tableScrollRef = useRef(null);
+    const topScrollRef = useRef(null);
+    const topInnerRef = useRef(null);
+
+    useEffect(() => {
+        const tableEl = tableScrollRef.current;
+        if (!tableEl || !topInnerRef.current) return;
+        const updateWidth = () => {
+            if (topInnerRef.current) topInnerRef.current.style.width = tableEl.scrollWidth + 'px';
+        };
+        updateWidth();
+        const ro = new ResizeObserver(updateWidth);
+        ro.observe(tableEl);
+        return () => ro.disconnect();
+    });
+
+    const syncFromTop = () => { if (tableScrollRef.current) tableScrollRef.current.scrollLeft = topScrollRef.current.scrollLeft; };
+    const syncFromTable = () => { if (topScrollRef.current) topScrollRef.current.scrollLeft = tableScrollRef.current.scrollLeft; };
 
     // Modal state
     const [modal, setModal] = useState({ open: false, title: '', message: '', type: 'alert', details: null, onConfirm: null });
     const closeModal = () => setModal((m) => ({ ...m, open: false }));
 
-    useEffect(() => { fetchEmployees(); }, []);
+    const refreshAssignments = () =>
+        getAssignments().then((r) => setAllAssignments(r.data)).catch(() => {});
+
+    useEffect(() => {
+        fetchEmployees();
+        getCategories().then((r) => setCategories(r.data)).catch(() => {});
+        refreshAssignments();
+    }, []);
+
+    // empId -> { computer, kiosk, printer, cat_X } lookup
+    const assignmentsByEmp = {};
+    for (const a of allAssignments) {
+        if (!assignmentsByEmp[a.employee_id]) assignmentsByEmp[a.employee_id] = {};
+        const key = a.item_type === 'category_item' ? `cat_${a.item_category_id}` : a.item_type;
+        assignmentsByEmp[a.employee_id][key] = a;
+    }
+
+    const handleRowClick = async (empId) => {
+        if (expandedId === empId) { setExpandedId(null); return; }
+        setExpandedId(empId);
+        if (assignmentCache[empId]) return;
+        setLoadingExpand(true);
+        try {
+            const { data } = await getEmployeeAssignments(empId);
+            setAssignmentCache((c) => ({ ...c, [empId]: data }));
+        } catch { setAssignmentCache((c) => ({ ...c, [empId]: [] })); }
+        finally { setLoadingExpand(false); }
+    };
 
     // CSV handlers
     const openCsvImport = () => { setShowCsvImport(true); setShowForm(false); setCsvRows([]); setCsvFileName(''); setCsvResult(null); };
@@ -223,7 +296,7 @@ export default function Employees() {
 
     const filtered = employees.filter((emp) => {
         const q = search.toLowerCase();
-        return (
+        const matchesSearch = (
             emp.full_name?.toLowerCase().includes(q) ||
             emp.email?.toLowerCase().includes(q) ||
             (emp.department || '').toLowerCase().includes(q) ||
@@ -231,6 +304,10 @@ export default function Employees() {
             (emp.location || '').toLowerCase().includes(q) ||
             (emp.phone || '').toLowerCase().includes(q)
         );
+        if (!matchesSearch) return false;
+        if (activeFilters.size === 0) return true;
+        const empMap = assignmentsByEmp[emp.id] || {};
+        return [...activeFilters].every((key) => !!empMap[key]);
     });
 
     return (
@@ -364,14 +441,59 @@ export default function Employees() {
 
             {/* Employee Table */}
             <div className="glass-card" style={{ overflow: 'hidden' }}>
-                <div style={{ padding: 20, borderBottom: '1px solid rgba(99,102,241,0.06)' }}>
+                <div style={{ padding: 20, borderBottom: '1px solid rgba(99,102,241,0.06)', display: 'flex', flexDirection: 'column', gap: 14 }}>
                     <div style={{ position: 'relative', maxWidth: 400 }}>
                         <Search style={{ position: 'absolute', left: 16, top: '50%', transform: 'translateY(-50%)', width: 16, height: 16, color: '#334155' }} />
                         <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="İsim, e-posta, departman, firma, lokasyon ile ara..." className="input" style={{ paddingLeft: 44 }} />
                     </div>
+                    {/* Zimmet filtre butonları */}
+                    {(FIXED_TYPES.length + categories.length > 0) && (
+                        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
+                            <span style={{ fontSize: 11, color: '#475569', fontWeight: 600 }}>Zimmet filtrele:</span>
+                            {[
+                                ...FIXED_TYPES.map(({ key, label, Icon }) => ({ key, label, Icon, color: '#6366f1' })),
+                                ...categories.map((c) => ({ key: `cat_${c.id}`, label: c.name, Icon: Package, color: c.color || '#6366f1' })),
+                            ].map(({ key, label, Icon, color }) => {
+                                const active = activeFilters.has(key);
+                                return (
+                                    <button
+                                        key={key}
+                                        onClick={() => toggleFilter(key)}
+                                        style={{
+                                            display: 'inline-flex', alignItems: 'center', gap: 6,
+                                            padding: '5px 12px', borderRadius: 20, fontSize: 12, fontWeight: 600,
+                                            cursor: 'pointer', transition: 'all 0.15s', fontFamily: 'Inter, sans-serif',
+                                            border: active ? `1px solid ${color}66` : '1px solid rgba(255,255,255,0.07)',
+                                            background: active ? `${color}18` : 'rgba(255,255,255,0.03)',
+                                            color: active ? color : '#475569',
+                                        }}
+                                    >
+                                        <Icon style={{ width: 12, height: 12 }} />
+                                        {label}
+                                    </button>
+                                );
+                            })}
+                            {activeFilters.size > 0 && (
+                                <button
+                                    onClick={() => setActiveFilters(new Set())}
+                                    style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600, cursor: 'pointer', border: '1px solid rgba(239,68,68,0.2)', background: 'rgba(239,68,68,0.06)', color: '#f87171', fontFamily: 'Inter, sans-serif' }}
+                                >
+                                    <X style={{ width: 11, height: 11 }} /> Temizle
+                                </button>
+                            )}
+                        </div>
+                    )}
                 </div>
 
-                <div style={{ overflowX: 'auto' }}>
+                {/* Üst kaydırma çubuğu */}
+                <div
+                    ref={topScrollRef}
+                    onScroll={syncFromTop}
+                    style={{ overflowX: 'auto', overflowY: 'hidden', height: 12 }}
+                >
+                    <div ref={topInnerRef} style={{ height: 1 }} />
+                </div>
+                <div ref={tableScrollRef} onScroll={syncFromTable} style={{ overflowX: 'auto' }}>
                     <table className="data-table">
                         <thead>
                             <tr>
@@ -381,41 +503,155 @@ export default function Employees() {
                                 <th>Firma</th>
                                 <th>Lokasyon</th>
                                 <th>Telefon</th>
+                                {FIXED_TYPES.map(({ key, label, Icon }) => (
+                                    <th key={key} style={{ whiteSpace: 'nowrap' }}>
+                                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                                            <Icon style={{ width: 12, height: 12 }} />{label}
+                                        </span>
+                                    </th>
+                                ))}
+                                {categories.map((c) => (
+                                    <th key={c.id} style={{ whiteSpace: 'nowrap' }}>
+                                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                                            <Package style={{ width: 12, height: 12 }} />{c.name}
+                                        </span>
+                                    </th>
+                                ))}
                                 <th>İşlem</th>
                             </tr>
                         </thead>
                         <tbody>
                             {filtered.length === 0 ? (
-                                <tr><td colSpan={7}><div className="empty-state"><Users /><p>{employees.length === 0 ? 'Henüz personel eklenmedi.' : 'Sonuç bulunamadı.'}</p></div></td></tr>
+                                <tr><td colSpan={7 + FIXED_TYPES.length + categories.length}><div className="empty-state"><Users /><p>{employees.length === 0 ? 'Henüz personel eklenmedi.' : 'Sonuç bulunamadı.'}</p></div></td></tr>
                             ) : (
-                                filtered.map((emp) => (
-                                    <tr key={emp.id}>
-                                        <td>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                                                <div style={{
-                                                    width: 32, height: 32, borderRadius: 8, flexShrink: 0,
-                                                    background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
-                                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                                    fontSize: 12, fontWeight: 700, color: '#fff',
-                                                }}>
-                                                    {emp.full_name.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase()}
-                                                </div>
-                                                <span style={{ fontWeight: 600, color: '#e2e8f0' }}>{emp.full_name}</span>
-                                            </div>
-                                        </td>
-                                        <td style={{ fontSize: 13, color: '#64748b' }}>{emp.email}</td>
-                                        <td>{emp.department ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, color: '#94a3b8' }}><Building style={{ width: 12, height: 12, color: '#475569' }} />{emp.department}</span> : <span style={{ color: '#334155' }}>—</span>}</td>
-                                        <td>{emp.company ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, color: '#94a3b8' }}><Briefcase style={{ width: 12, height: 12, color: '#475569' }} />{emp.company}</span> : <span style={{ color: '#334155' }}>—</span>}</td>
-                                        <td>{emp.location ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, color: '#94a3b8' }}><MapPin style={{ width: 12, height: 12, color: '#475569' }} />{emp.location}</span> : <span style={{ color: '#334155' }}>—</span>}</td>
-                                        <td>{emp.phone ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, color: '#94a3b8' }}><Phone style={{ width: 12, height: 12, color: '#475569' }} />{emp.phone}</span> : <span style={{ color: '#334155' }}>—</span>}</td>
-                                        <td>
-                                            <div style={{ display: 'flex', gap: 4 }}>
-                                                <button onClick={() => openEdit(emp)} className="btn btn-ghost btn-sm" style={{ padding: 8 }}><Edit style={{ width: 15, height: 15 }} /></button>
-                                                <button onClick={() => handleDelete(emp.id)} className="btn btn-ghost btn-sm" style={{ padding: 8, color: '#f87171' }}><Trash2 style={{ width: 15, height: 15 }} /></button>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                ))
+                                filtered.map((emp) => {
+                                    const isExpanded = expandedId === emp.id;
+                                    const empAssignments = assignmentCache[emp.id] || [];
+                                    const allCols = [
+                                        ...FIXED_TYPES,
+                                        ...categories.map((c) => ({ key: `cat_${c.id}`, label: c.name, Icon: Package, categoryId: c.id, color: c.color })),
+                                    ];
+                                    return (
+                                        <Fragment key={emp.id}>
+                                            <tr
+                                                onClick={() => handleRowClick(emp.id)}
+                                                style={{ cursor: 'pointer', background: isExpanded ? 'rgba(99,102,241,0.05)' : undefined }}
+                                            >
+                                                <td>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                                                        <div style={{
+                                                            width: 32, height: 32, borderRadius: 8, flexShrink: 0,
+                                                            background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                                                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                            fontSize: 12, fontWeight: 700, color: '#fff',
+                                                        }}>
+                                                            {emp.full_name.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase()}
+                                                        </div>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                                            <span style={{ fontWeight: 600, color: '#e2e8f0' }}>{emp.full_name}</span>
+                                                            {isExpanded
+                                                                ? <ChevronUp style={{ width: 14, height: 14, color: '#6366f1' }} />
+                                                                : <ChevronDown style={{ width: 14, height: 14, color: '#475569' }} />}
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                                <td style={{ fontSize: 13, color: '#64748b' }}>{emp.email}</td>
+                                                <td>{emp.department ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, color: '#94a3b8' }}><Building style={{ width: 12, height: 12, color: '#475569' }} />{emp.department}</span> : <span style={{ color: '#334155' }}>—</span>}</td>
+                                                <td>{emp.company ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, color: '#94a3b8' }}><Briefcase style={{ width: 12, height: 12, color: '#475569' }} />{emp.company}</span> : <span style={{ color: '#334155' }}>—</span>}</td>
+                                                <td>{emp.location ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, color: '#94a3b8' }}><MapPin style={{ width: 12, height: 12, color: '#475569' }} />{emp.location}</span> : <span style={{ color: '#334155' }}>—</span>}</td>
+                                                <td>{emp.phone ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, color: '#94a3b8' }}><Phone style={{ width: 12, height: 12, color: '#475569' }} />{emp.phone}</span> : <span style={{ color: '#334155' }}>—</span>}</td>
+                                                {/* Zimmet kolonları */}
+                                                {(() => {
+                                                    const empMap = assignmentsByEmp[emp.id] || {};
+                                                    const allCols = [
+                                                        ...FIXED_TYPES.map((t) => ({ colKey: t.key, isComputer: t.key === 'computer' })),
+                                                        ...categories.map((c) => ({ colKey: `cat_${c.id}`, isComputer: false, color: c.color })),
+                                                    ];
+                                                    return allCols.map(({ colKey, isComputer, color }) => {
+                                                        const a = empMap[colKey];
+                                                        return (
+                                                            <td key={colKey} style={{ textAlign: 'center' }}>
+                                                                {a ? (
+                                                                    isComputer ? (
+                                                                        <span style={{ fontSize: 11, fontWeight: 600, color: '#a5b4fc' }}>
+                                                                            {a.computer_name || [a.computer_brand, a.computer_model].filter(Boolean).join(' ') || '—'}
+                                                                        </span>
+                                                                    ) : (
+                                                                        <span style={{ color: color || '#10b981', fontSize: 14, fontWeight: 700 }}>✓</span>
+                                                                    )
+                                                                ) : (
+                                                                    <span style={{ color: '#334155', fontSize: 12 }}>—</span>
+                                                                )}
+                                                            </td>
+                                                        );
+                                                    });
+                                                })()}
+                                                <td onClick={(e) => e.stopPropagation()}>
+                                                    <div style={{ display: 'flex', gap: 4 }}>
+                                                        <button onClick={() => openEdit(emp)} className="btn btn-ghost btn-sm" style={{ padding: 8 }}><Edit style={{ width: 15, height: 15 }} /></button>
+                                                        <button onClick={() => handleDelete(emp.id)} className="btn btn-ghost btn-sm" style={{ padding: 8, color: '#f87171' }}><Trash2 style={{ width: 15, height: 15 }} /></button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                            {isExpanded && (
+                                                <tr>
+                                                    <td colSpan={7 + FIXED_TYPES.length + categories.length} style={{ padding: 0, background: 'rgba(15,23,42,0.6)', borderBottom: '1px solid rgba(99,102,241,0.15)' }}>
+                                                        {loadingExpand && !assignmentCache[emp.id] ? (
+                                                            <div style={{ padding: '20px 24px', color: '#475569', fontSize: 13 }}>Yükleniyor...</div>
+                                                        ) : (
+                                                            <div style={{ padding: '16px 24px', display: 'flex', gap: 12, overflowX: 'auto' }}>
+                                                                {allCols.map((col) => {
+                                                                    const matched = empAssignments.find((a) => {
+                                                                        if (col.categoryId) return a.item_type === 'category_item' && a.item_category_id === col.categoryId;
+                                                                        return a.item_type === col.key;
+                                                                    });
+                                                                    const color = col.color || '#6366f1';
+                                                                    const { primary, secondary } = matched ? getItemLabel(matched) : { primary: null, secondary: null };
+                                                                    return (
+                                                                        <div
+                                                                            key={col.key}
+                                                                            style={{
+                                                                                minWidth: 150, maxWidth: 180, flexShrink: 0,
+                                                                                borderRadius: 12, padding: '14px 16px',
+                                                                                border: matched
+                                                                                    ? `1px solid ${color}44`
+                                                                                    : '1px solid rgba(255,255,255,0.04)',
+                                                                                background: matched
+                                                                                    ? `${color}10`
+                                                                                    : 'rgba(255,255,255,0.02)',
+                                                                            }}
+                                                                        >
+                                                                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                                                                                <col.Icon style={{ width: 13, height: 13, color: matched ? color : '#334155', flexShrink: 0 }} />
+                                                                                <span style={{ fontSize: 10, fontWeight: 700, color: matched ? color : '#334155', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                                                                                    {col.label}
+                                                                                </span>
+                                                                            </div>
+                                                                            {matched ? (
+                                                                                <>
+                                                                                    <p style={{ fontSize: 12, fontWeight: 600, color: '#e2e8f0', margin: 0, lineHeight: 1.4 }}>{primary}</p>
+                                                                                    {secondary && <p style={{ fontSize: 10, color: '#64748b', margin: '3px 0 0', fontFamily: 'monospace' }}>{secondary}</p>}
+                                                                                    <p style={{ fontSize: 10, color: '#475569', margin: '6px 0 0' }}>
+                                                                                        {matched.assigned_date ? new Date(matched.assigned_date).toLocaleDateString('tr-TR') : ''}
+                                                                                    </p>
+                                                                                </>
+                                                                            ) : (
+                                                                                <p style={{ fontSize: 13, color: '#334155', margin: 0 }}>—</p>
+                                                                            )}
+                                                                        </div>
+                                                                    );
+                                                                })}
+                                                                {empAssignments.length === 0 && (
+                                                                    <p style={{ fontSize: 13, color: '#475569', alignSelf: 'center', margin: 0 }}>Aktif zimmet yok.</p>
+                                                                )}
+                                                            </div>
+                                                        )}
+                                                    </td>
+                                                </tr>
+                                            )}
+                                        </Fragment>
+                                    );
+                                })
                             )}
                         </tbody>
                     </table>
